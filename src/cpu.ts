@@ -1,0 +1,814 @@
+import { Bus } from './bus';
+
+enum Flag {
+  C = 1 << 0,
+  Z = 1 << 1,
+  I = 1 << 2,
+  D = 1 << 3,
+  B = 1 << 4,
+  U = 1 << 5,
+  V = 1 << 6,
+  N = 1 << 7,
+}
+
+type Instruction = [() => void, () => void, number];
+
+export class CPU {
+  // accumulator
+  private _a: number = 0;
+  get a(): number {
+    return this._a;
+  }
+  private set a(v: number) {
+    this._a = v & 0xff;
+  }
+
+  // X register
+  private _x: number = 0;
+  get x(): number {
+    return this._x;
+  }
+  private set x(v: number) {
+    this._x = v & 0xff;
+  }
+
+  // Y register
+  private _y: number = 0;
+  get y(): number {
+    return this._y;
+  }
+  private set y(v: number) {
+    this._y = v & 0xff;
+  }
+
+  // status register
+  private _p: number = 0;
+  get p(): number {
+    return this._p;
+  }
+  private set p(v: number) {
+    this._p = v & 0xff;
+  }
+
+  // stack pointer
+  private _s: number = 0;
+  get s(): number {
+    return this._s;
+  }
+  private set s(v: number) {
+    this._s = v & 0xff;
+  }
+
+  // program counter
+  private _pc: number = 0;
+  get pc(): number {
+    return this._pc;
+  }
+  private set pc(v: number) {
+    this._pc = v & 0xffff;
+  }
+
+  // operand
+  private _o: number = 0;
+  private get o(): number {
+    return this._o;
+  }
+  private set o(v: number) {
+    this._o = v & 0xff;
+  }
+
+  // operand address
+  private addr: number = 0;
+
+  private cycles: number = 0;
+
+  private pageCrossed: boolean = false;
+
+  private dmEnabled: boolean = true;
+
+  private bus!: Bus;
+
+  private rcb: ((addr: number, byte: number) => void) | null = null;
+
+  private wcb: ((addr: number, byte: number) => void) | null = null;
+
+  private ecb: ((cpu: CPU) => void) | null = null;
+
+  // prettier-ignore
+  // instruction table
+  private it: Instruction[] = [
+    [this.brk, this.imp, 7], [this.ora, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.zpg, 3], [this.asl, this.zpg, 5], [this.nop, this.imp, 2], [this.php, this.imp, 3], [this.ora, this.imm, 2], [this.asl, this.acc, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.abs, 4], [this.asl, this.abs, 6], [this.nop, this.imp, 2],
+    [this.bpl, this.rel, 2], [this.ora, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.zpx, 4], [this.asl, this.zpx, 6], [this.nop, this.imp, 2], [this.clc, this.imp, 2], [this.ora, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.abx, 4], [this.asl, this.abx, 7], [this.nop, this.imp, 2],
+    [this.jsr, this.abs, 6], [this.and, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.bit, this.zpg, 3], [this.and, this.zpg, 3], [this.rol, this.zpg, 5], [this.nop, this.imp, 2], [this.plp, this.imp, 4], [this.and, this.imm, 2], [this.rol, this.acc, 2], [this.nop, this.imp, 2], [this.bit, this.abs, 4], [this.and, this.abs, 4], [this.rol, this.abs, 6], [this.nop, this.imp, 2],
+    [this.bmi, this.rel, 2], [this.and, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.and, this.zpx, 4], [this.rol, this.zpx, 6], [this.nop, this.imp, 2], [this.sec, this.imp, 2], [this.and, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.and, this.abx, 4], [this.rol, this.abx, 7], [this.nop, this.imp, 2],
+    [this.rti, this.imp, 6], [this.eor, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.zpg, 3], [this.lsr, this.zpg, 5], [this.nop, this.imp, 2], [this.pha, this.imp, 3], [this.eor, this.imm, 2], [this.lsr, this.acc, 2], [this.nop, this.imp, 2], [this.jmp, this.abs, 3], [this.eor, this.abs, 4], [this.lsr, this.abs, 6], [this.nop, this.imp, 2],
+    [this.bvc, this.rel, 2], [this.eor, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.zpx, 4], [this.lsr, this.zpx, 6], [this.nop, this.imp, 2], [this.cli, this.imp, 2], [this.eor, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.abx, 4], [this.lsr, this.abx, 7], [this.nop, this.imp, 2],
+    [this.rts, this.imp, 6], [this.adc, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.zpg, 3], [this.ror, this.zpg, 5], [this.nop, this.imp, 2], [this.pla, this.imp, 4], [this.adc, this.imm, 2], [this.ror, this.acc, 2], [this.nop, this.imp, 2], [this.jmp, this.ind, 5], [this.adc, this.abs, 4], [this.ror, this.abs, 6], [this.nop, this.imp, 2],
+    [this.bvs, this.rel, 2], [this.adc, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.zpx, 4], [this.ror, this.zpx, 6], [this.nop, this.imp, 2], [this.sei, this.imp, 2], [this.adc, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.abx, 4], [this.ror, this.abx, 7], [this.nop, this.imp, 2],
+    [this.nop, this.imp, 2], [this.sta, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.zpg, 3], [this.sta, this.zpg, 3], [this.stx, this.zpg, 3], [this.nop, this.imp, 2], [this.dey, this.imp, 2], [this.nop, this.imp, 2], [this.txa, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.abs, 4], [this.sta, this.abs, 4], [this.stx, this.abs, 4], [this.nop, this.imp, 2],
+    [this.bcc, this.rel, 2], [this.sta, this.iiy, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.zpx, 4], [this.sta, this.zpx, 4], [this.stx, this.zpy, 4], [this.nop, this.imp, 2], [this.tya, this.imp, 2], [this.sta, this.aby, 5], [this.txs, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sta, this.abx, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2],
+    [this.ldy, this.imm, 2], [this.lda, this.iix, 6], [this.ldx, this.imm, 2], [this.nop, this.imp, 2], [this.ldy, this.zpg, 3], [this.lda, this.zpg, 3], [this.ldx, this.zpg, 3], [this.nop, this.imp, 2], [this.tay, this.imp, 2], [this.lda, this.imm, 2], [this.tax, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.abs, 4], [this.lda, this.abs, 4], [this.ldx, this.abs, 4], [this.nop, this.imp, 2],
+    [this.bcs, this.rel, 2], [this.lda, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.zpx, 4], [this.lda, this.zpx, 4], [this.ldx, this.zpy, 4], [this.nop, this.imp, 2], [this.clv, this.imp, 2], [this.lda, this.aby, 4], [this.tsx, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.abx, 4], [this.lda, this.abx, 4], [this.ldx, this.aby, 4], [this.nop, this.imp, 2],
+    [this.cpy, this.imm, 2], [this.cmp, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpy, this.zpg, 3], [this.cmp, this.zpg, 3], [this.dec, this.zpg, 5], [this.nop, this.imp, 2], [this.iny, this.imp, 2], [this.cmp, this.imm, 2], [this.dex, this.imp, 2], [this.nop, this.imp, 2], [this.cpy, this.abs, 4], [this.cmp, this.abs, 4], [this.dec, this.abs, 6], [this.nop, this.imp, 2],
+    [this.bne, this.rel, 2], [this.cmp, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cmp, this.zpx, 4], [this.dec, this.zpx, 6], [this.nop, this.imp, 2], [this.cld, this.imp, 2], [this.cmp, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cmp, this.abx, 4], [this.dec, this.abx, 7], [this.nop, this.imp, 2],
+    [this.cpx, this.imm, 2], [this.sbc, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpx, this.zpg, 3], [this.sbc, this.zpg, 3], [this.inc, this.zpg, 5], [this.nop, this.imp, 2], [this.inx, this.imp, 2], [this.sbc, this.imm, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpx, this.abs, 4], [this.sbc, this.abs, 4], [this.inc, this.abs, 6], [this.nop, this.imp, 2],
+    [this.beq, this.rel, 2], [this.sbc, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sbc, this.zpx, 4], [this.inc, this.zpx, 6], [this.nop, this.imp, 2], [this.sed, this.imp, 2], [this.sbc, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sbc, this.abx, 4], [this.inc, this.abx, 7], [this.nop, this.imp, 2],
+  ];
+
+  constructor(
+    state: Partial<{
+      a: number;
+      x: number;
+      y: number;
+      p: number;
+      s: number;
+      pc: number;
+    }> = {}
+  ) {
+    const { a = 0, x = 0, y = 0, p = 0, s = 0, pc = 0 } = state;
+    this.a = a;
+    this.x = x;
+    this.y = y;
+    this.p = p;
+    this.s = s;
+    this.pc = pc;
+  }
+
+  setBus(bus: Bus): void {
+    this.bus = bus;
+  }
+
+  disableDecimalMode(): void {
+    this.dmEnabled = false;
+  }
+
+  reset(): void {
+    this.a = this.x = this.y = 0;
+    this.s = 0xfd;
+    this.p = 0x24;
+    this.pc = this.readWord(0xfffc);
+  }
+
+  irq(): void {
+    if (this.flag(Flag.I)) {
+      return;
+    }
+
+    this.pushWord(this.pc);
+    this.push(this.p);
+    this.flag(Flag.I, 1);
+    this.pc = this.readWord(0xfffe);
+  }
+
+  nmi(): void {
+    this.pushWord(this.pc);
+    this.push(this.p);
+    this.flag(Flag.I, 1);
+    this.pc = this.readWord(0xfffa);
+  }
+
+  exec(): void {
+    this.ecb?.(this);
+
+    const opcode = this.read();
+
+    this.it[opcode][1].call(this);
+    this.it[opcode][0].call(this);
+
+    this.flag(Flag.U, 1);
+  }
+
+  onRead(cb: (addr: number, byte: number) => void): void {
+    this.rcb = cb;
+  }
+
+  onWrite(cb: (addr: number, byte: number) => void): void {
+    this.wcb = cb;
+  }
+
+  onExec(cb: (cpu: CPU) => void): void {
+    this.ecb = cb;
+  }
+
+  private read(addr?: number): number {
+    addr = addr == null ? this.pc++ : addr & 0xffff;
+    const byte = this.bus.read(addr);
+    this.rcb?.(addr, byte);
+
+    return byte;
+  }
+
+  private readWord(addr?: number, zeroPage: boolean = false): number {
+    if (addr == null) {
+      return this.read() | (this.read() << 8);
+    }
+
+    const m = zeroPage ? 0xff : 0xffff;
+
+    return this.read(addr & m) | (this.read((addr + 1) & m) << 8);
+  }
+
+  private write(addr: number, byte: number): void {
+    addr &= 0xffff;
+    byte &= 0xff;
+    this.wcb?.(addr, byte);
+    this.bus.write(addr, byte);
+  }
+
+  private flag(flag: Flag): number;
+  private flag(flag: Flag, val: number | boolean): void;
+  private flag(flag: Flag, val?: number | boolean): number | void {
+    if (val == null) {
+      return this.p & flag ? 1 : 0;
+    }
+
+    val ? (this.p |= flag) : (this.p &= ~flag);
+  }
+
+  // push on the stack
+  private push(val: number): void {
+    this.write(0x100 + this.s--, val);
+  }
+
+  private pushWord(val: number): void {
+    this.push(val >> 8);
+    this.push(val);
+  }
+
+  // pop from the stack
+  private pop(): number {
+    ++this.s;
+
+    return this.read(0x100 + this.s);
+  }
+
+  private popWord(): number {
+    return this.pop() | (this.pop() << 8);
+  }
+
+  // ADDRESSING MODES
+
+  // Implicit
+  private imp(): void {
+    this.addr = -1;
+  }
+
+  // Accumulator
+  private acc(): void {
+    this.addr = -1;
+    this.o = this.a;
+  }
+
+  // Immediate
+  private imm(): void {
+    this.addr = -1;
+    this.o = this.read();
+  }
+
+  // Zero Page
+  private zpg(): void {
+    this.addr = this.read();
+    this.o = this.read(this.addr);
+  }
+
+  // Zero Page,X
+  private zpx(): void {
+    this.addr = (this.read() + this.x) & 0xff;
+    this.o = this.read(this.addr);
+  }
+
+  // Zero Page,Y
+  private zpy(): void {
+    this.addr = (this.read() + this.y) & 0xff;
+    this.o = this.read(this.addr);
+  }
+
+  // Relative
+  private rel(): void {
+    this.addr = -1;
+    this.o = this.read();
+
+    if (this.o & 0x80) {
+      this.o |= ~0xff;
+    }
+
+    const page = this.pc & 0xff00;
+    this.pageCrossed = page !== ((this.pc + this.o) & 0xff00);
+  }
+
+  // Absolute
+  private abs(index: number = 0): void {
+    this.addr = this.readWord();
+    const page = this.addr & 0xff00;
+    this.addr += index;
+    this.pageCrossed = page !== (this.addr & 0xff00);
+    this.o = this.read(this.addr);
+  }
+
+  // Absolute,X
+  private abx(): void {
+    this.abs(this.x);
+  }
+
+  // Absolute,Y
+  private aby(): void {
+    this.abs(this.y);
+  }
+
+  // Indirect
+  private ind(): void {
+    this.addr = this.readWord();
+
+    if ((this.addr & 0xff) === 0xff) {
+      this.addr = this.read(this.addr) | (this.read(this.addr & 0xff00) << 8);
+    } else {
+      this.addr = this.readWord(this.addr);
+    }
+
+    this.o = this.read(this.addr);
+  }
+
+  // Indexed Indirect
+  private iix(): void {
+    this.addr = this.readWord(this.read() + this.x, true);
+    this.o = this.read(this.addr);
+  }
+
+  // Indirect Indexed
+  private iiy(): void {
+    this.addr = this.readWord(this.read(), true);
+    const page = this.addr & 0xff00;
+    this.addr += this.y;
+    this.pageCrossed = page !== (this.addr & 0xff00);
+    this.o = this.read(this.addr);
+  }
+
+  // INSTRUCTIONS
+
+  private adc(): void {
+    if (this.flag(Flag.D) && this.dmEnabled) {
+      return this.adcd();
+    }
+
+    const sum = this.a + this.o + this.flag(Flag.C);
+
+    this.flag(Flag.C, sum > 0xff);
+    this.flag(Flag.Z, !(sum & 0xff));
+    // adding two numbers of the same sign must produce a result of the same sign,
+    // otherwise overflow happened
+    // http://teaching.idallen.com/dat2343/11w/notes/040_overflow.txt
+    this.flag(
+      Flag.V,
+      // signA === signB && signA !== signSum
+      // (this.a & 0x80) === (this.o & 0x80) && (this.a & 0x80) !== (sum & 0x80)
+      ~(this.a ^ this.o) & (this.a ^ sum) & 0x80
+    );
+    this.flag(Flag.N, sum & 0x80);
+
+    this.a = sum;
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private adcd(): void {
+    let l = (this.a & 0x0f) + (this.o & 0x0f) + this.flag(Flag.C);
+
+    if (l > 0x09) {
+      l = ((l + 0x06) & 0x0f) + 0x10;
+    }
+
+    let sum = (this.a & 0xf0) + (this.o & 0xf0) + l;
+
+    this.flag(Flag.C, sum > 0x99);
+
+    if (sum > 0x99) {
+      sum += 0x60;
+    }
+
+    this.a = sum;
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private and(): void {
+    this.a &= this.o;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private asl(): void {
+    this.flag(Flag.C, this.o & 0x80);
+
+    this.o = this.o << 1;
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    if (this.addr < 0) {
+      this.a = this.o;
+    } else {
+      this.write(this.addr, this.o);
+    }
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private bcc(): void {
+    if (!this.flag(Flag.C)) {
+      this.bra();
+    }
+  }
+
+  private bcs(): void {
+    if (this.flag(Flag.C)) {
+      this.bra();
+    }
+  }
+
+  private beq(): void {
+    if (this.flag(Flag.Z)) {
+      this.bra();
+    }
+  }
+
+  private bit(): void {
+    this.flag(Flag.Z, !(this.a & this.o));
+    this.flag(Flag.V, this.o & 0x40);
+    this.flag(Flag.N, this.o & 0x80);
+  }
+
+  private bmi(): void {
+    if (this.flag(Flag.N)) {
+      this.bra();
+    }
+  }
+
+  private bne(): void {
+    if (!this.flag(Flag.Z)) {
+      this.bra();
+    }
+  }
+
+  private bpl(): void {
+    if (!this.flag(Flag.N)) {
+      this.bra();
+    }
+  }
+
+  private bra(): void {
+    let rel = this.o;
+
+    if (rel & 0x80) {
+      rel |= ~0xff;
+    }
+
+    this.pc += rel;
+
+    this.cycles += +this.pageCrossed + 1;
+  }
+
+  private brk(): void {
+    this.pushWord(this.pc + 1);
+    this.push(this.p | Flag.B);
+
+    this.flag(Flag.I, 1);
+
+    this.pc = this.readWord(0xfffe);
+  }
+
+  private bvc(): void {
+    if (!this.flag(Flag.V)) {
+      this.bra();
+    }
+  }
+
+  private bvs(): void {
+    if (this.flag(Flag.V)) {
+      this.bra();
+    }
+  }
+
+  private clc(): void {
+    this.flag(Flag.C, 0);
+  }
+
+  private cld(): void {
+    this.flag(Flag.D, 0);
+  }
+
+  private cli(): void {
+    this.flag(Flag.I, 0);
+  }
+
+  private clv(): void {
+    this.flag(Flag.V, 0);
+  }
+
+  private cmp(): void {
+    this.flag(Flag.C, this.a >= this.o);
+    this.flag(Flag.Z, this.a === this.o);
+    this.flag(Flag.N, (this.a - this.o) & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private cpx(): void {
+    this.flag(Flag.C, this.x >= this.o);
+    this.flag(Flag.Z, this.x === this.o);
+    this.flag(Flag.N, (this.x - this.o) & 0x80);
+  }
+
+  private cpy(): void {
+    this.flag(Flag.C, this.y >= this.o);
+    this.flag(Flag.Z, this.y === this.o);
+    this.flag(Flag.N, (this.y - this.o) & 0x80);
+  }
+
+  private dec(): void {
+    --this.o;
+    this.write(this.addr, this.o);
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private dex(): void {
+    --this.x;
+
+    this.flag(Flag.Z, !this.x);
+    this.flag(Flag.N, this.x & 0x80);
+  }
+
+  private dey(): void {
+    --this.y;
+
+    this.flag(Flag.Z, !this.y);
+    this.flag(Flag.N, this.y & 0x80);
+  }
+
+  private eor(): void {
+    this.a ^= this.o;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private inc(): void {
+    ++this.o;
+    this.write(this.addr, this.o);
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private inx(): void {
+    ++this.x;
+
+    this.flag(Flag.Z, !this.x);
+    this.flag(Flag.N, this.x & 0x80);
+  }
+
+  private iny(): void {
+    ++this.y;
+
+    this.flag(Flag.Z, !this.y);
+    this.flag(Flag.N, this.y & 0x80);
+  }
+
+  private jmp(): void {
+    this.pc = this.addr;
+  }
+
+  private jsr(): void {
+    this.pushWord(this.pc - 1);
+
+    this.pc = this.addr;
+  }
+
+  private lda(): void {
+    this.a = this.o;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private ldx(): void {
+    this.x = this.o;
+
+    this.flag(Flag.Z, !this.x);
+    this.flag(Flag.N, this.x & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private ldy(): void {
+    this.y = this.o;
+
+    this.flag(Flag.Z, !this.y);
+    this.flag(Flag.N, this.y & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private lsr(): void {
+    this.flag(Flag.C, this.o & 0x1);
+
+    this.o = this.o >> 1;
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    if (this.addr < 0) {
+      this.a = this.o;
+    } else {
+      this.write(this.addr, this.o);
+    }
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private nop(): void {
+    // do nothing
+  }
+
+  private ora(): void {
+    this.a |= this.o;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private pha(): void {
+    this.push(this.a);
+  }
+
+  private php(): void {
+    this.push(this.p | Flag.B);
+  }
+
+  private pla(): void {
+    this.a = this.pop();
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+  }
+
+  private plp(): void {
+    this.p = this.pop() & ~Flag.B;
+  }
+
+  private rol(): void {
+    const cf = this.flag(Flag.C);
+
+    this.flag(Flag.C, this.o & 0x80);
+
+    this.o = (this.o << 1) | cf;
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    if (this.addr < 0) {
+      this.a = this.o;
+    } else {
+      this.write(this.addr, this.o);
+    }
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private ror(): void {
+    const cf = this.flag(Flag.C);
+
+    this.flag(Flag.C, this.o & 0x01);
+
+    this.o = (this.o >> 1) | (cf << 7);
+
+    this.flag(Flag.Z, !this.o);
+    this.flag(Flag.N, this.o & 0x80);
+
+    if (this.addr < 0) {
+      this.a = this.o;
+    } else {
+      this.write(this.addr, this.o);
+    }
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private rti(): void {
+    this.p = this.pop() & ~Flag.B;
+    this.pc = this.popWord();
+  }
+
+  private rts(): void {
+    this.pc = this.popWord() + 1;
+  }
+
+  private sbc(): void {
+    if (this.flag(Flag.D) && this.dmEnabled) {
+      return this.sbcd();
+    }
+
+    // a - m - (1 - c) = a + (-m) - 1 + c = a + (~m + 1) - 1 + c =
+    // = a + ~m + 1 - 1 + c = a + ~m + c
+    // so addition can be used
+    this.o = ~this.o;
+    this.adc();
+  }
+
+  private sbcd(): void {
+    let l = (this.a & 0x0f) - (this.o & 0x0f) + this.flag(Flag.C) - 1;
+
+    if (l < 0) {
+      l = ((l - 0x06) & 0x0f) - 0x10;
+    }
+
+    let sub = (this.a & 0xf0) - (this.o & 0xf0) + l;
+
+    this.flag(Flag.C, sub >= 0);
+
+    if (sub < 0) {
+      sub -= 0x60;
+    }
+
+    this.a = sub;
+
+    this.cycles += +this.pageCrossed;
+  }
+
+  private sec(): void {
+    this.flag(Flag.C, 1);
+  }
+
+  private sed(): void {
+    this.flag(Flag.D, 1);
+  }
+
+  private sei(): void {
+    this.flag(Flag.I, 1);
+  }
+
+  private sta(): void {
+    this.write(this.addr, this.a);
+  }
+
+  private stx(): void {
+    this.write(this.addr, this.x);
+  }
+
+  private sty(): void {
+    this.write(this.addr, this.y);
+  }
+
+  private tax(): void {
+    this.x = this.a;
+
+    this.flag(Flag.Z, !this.x);
+    this.flag(Flag.N, this.x & 0x80);
+  }
+
+  private tay(): void {
+    this.y = this.a;
+
+    this.flag(Flag.Z, !this.y);
+    this.flag(Flag.N, this.y & 0x80);
+  }
+
+  private tsx(): void {
+    this.x = this.s;
+
+    this.flag(Flag.Z, !this.x);
+    this.flag(Flag.N, this.x & 0x80);
+  }
+
+  private txa(): void {
+    this.a = this.x;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+  }
+
+  private txs(): void {
+    this.s = this.x;
+  }
+
+  private tya(): void {
+    this.a = this.y;
+
+    this.flag(Flag.Z, !this.a);
+    this.flag(Flag.N, this.a & 0x80);
+  }
+}
