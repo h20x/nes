@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Bus } from '../src/bus';
 import { CPU } from '../src/cpu';
-import { Ram } from '../src/ram';
+import { TestBus } from './bus';
 import { Logger } from './logger';
 
 type CPUState = {
@@ -42,7 +42,7 @@ function functionalTest(): void {
   while (true) {
     const { pc } = cpu;
 
-    cpu.exec();
+    while (cpu.tick());
 
     if (cpu.pc === pc) {
       break;
@@ -64,7 +64,7 @@ function decimalTest(): void {
   ]);
 
   while (true) {
-    cpu.exec();
+    while (cpu.tick());
 
     if (cpu.pc === 0x025b) {
       break;
@@ -80,7 +80,7 @@ function decimalTest(): void {
 
 function interruptTest(): void {
   const testName = 'interrupt test';
-  const [cpu, ram] = setupTest('6502_interrupt_test', 0x0a, [
+  const [cpu, bus] = setupTest('6502_interrupt_test', 0x0a, [
     [0xfffc, 0x00],
     [0xfffd, 0x04],
     [0xbffc, 0x00],
@@ -89,15 +89,15 @@ function interruptTest(): void {
   while (true) {
     const { pc } = cpu;
 
-    cpu.exec();
+    while (cpu.tick());
 
-    const port = ram.read(0xbffc);
+    const port = bus.read(0xbffc);
 
     if (port & 0x02) {
-      ram.write(0xbffc, port & ~0x02);
+      bus.write(0xbffc, port & ~0x02);
       cpu.nmi();
-    } else if (!(cpu.p & 0x04) && port & 0x01) {
-      ram.write(0xbffc, port & ~0x01);
+    } else if (port & 0x01) {
+      !(cpu.p & 0x04) && bus.write(0xbffc, port & ~0x01);
       cpu.irq();
     }
 
@@ -117,32 +117,29 @@ function setupTest(
   testFile: string,
   startAddr: number,
   mem: Memory
-): [CPU, Ram] {
+): [CPU, Bus] {
   startTime = Date.now();
 
-  const bus = new Bus();
-  const ram = new Ram();
-  const cpu = new CPU();
+  const bus = new TestBus();
+  const cpu = new CPU(bus);
 
   let addr = startAddr;
 
   readBinFile(path.join(__dirname, `bin/${testFile}.bin`), (val) =>
-    ram.write(addr++, val)
+    bus.write(addr++, val)
   );
 
   for (const [a, v] of mem) {
-    ram.write(a, v);
+    bus.write(a, v);
   }
 
-  bus.setRam(ram);
-  cpu.setBus(bus);
   cpu.reset();
 
   if (DEBUG) {
     logger = new Logger(cpu);
   }
 
-  return [cpu, ram];
+  return [cpu, bus];
 }
 
 function readBinFile(path: string, cb: (byte: number) => void): void {
@@ -207,23 +204,20 @@ function singleStepTests(): void {
 }
 
 function singleStepTest({ name, initial, final }: TestData): void {
-  const bus = new Bus();
-  const ram = new Ram();
-  const cpu = new CPU(initial);
+  const bus = new TestBus();
+  const cpu = new CPU(bus, initial);
 
   const logger = DEBUG ? new Logger(cpu) : null;
 
   for (const [addr, val] of initial.ram) {
-    ram.write(addr, val);
+    bus.write(addr, val);
   }
 
-  bus.setRam(ram);
-  cpu.setBus(bus);
   cpu.disableDecimalMode();
 
-  cpu.exec();
+  while (cpu.tick());
 
-  if (!compareCPUState(final, cpu) || !compareMem(final.ram, ram)) {
+  if (!compareCPUState(final, cpu) || !compareMem(final.ram, bus)) {
     console.log(`\ntest: ${name}`);
 
     console.log('\ninitial');
@@ -236,7 +230,7 @@ function singleStepTest({ name, initial, final }: TestData): void {
 
     console.log('\ncurrent');
     printCPUState(cpu);
-    printMem(ramToMem(final.ram, ram));
+    printMem(extractMem(final.ram, bus));
 
     logger?.writeFile(name);
 
@@ -255,9 +249,9 @@ function compareCPUState(a: CPUState, b: CPUState): boolean {
   );
 }
 
-function compareMem(mem: Memory, ram: Ram): boolean {
+function compareMem(mem: Memory, bus: Bus): boolean {
   for (const [addr, val] of mem) {
-    if (ram.read(addr) !== val) {
+    if (bus.read(addr) !== val) {
       return false;
     }
   }
@@ -265,8 +259,8 @@ function compareMem(mem: Memory, ram: Ram): boolean {
   return true;
 }
 
-function ramToMem(mem: Memory, ram: Ram): Memory {
-  return mem.map(([addr]) => [addr, ram.read(addr)]);
+function extractMem(mem: Memory, bus: Bus): Memory {
+  return mem.map(([addr]) => [addr, bus.read(addr)]);
 }
 
 function printCPUState(s: CPUState): void {

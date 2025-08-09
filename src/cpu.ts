@@ -77,6 +77,9 @@ export class CPU {
     this._o = v & 0xff;
   }
 
+  // instruction register
+  private ir: number = 0;
+
   // operand address
   private addr: number = 0;
 
@@ -86,11 +89,13 @@ export class CPU {
 
   private dmEnabled: boolean = true;
 
-  private bus!: Bus;
+  private irqScheduled: boolean = false;
 
-  private rcb: ((addr: number, byte: number) => void) | null = null;
+  private nmiScheduled: boolean = false;
 
-  private wcb: ((addr: number, byte: number) => void) | null = null;
+  private rcb: ((addr: number, val: number) => void) | null = null;
+
+  private wcb: ((addr: number, val: number) => void) | null = null;
 
   private ecb: ((cpu: CPU) => void) | null = null;
 
@@ -116,6 +121,7 @@ export class CPU {
   ];
 
   constructor(
+    private bus: Bus,
     state: Partial<{
       a: number;
       x: number;
@@ -134,55 +140,63 @@ export class CPU {
     this.pc = pc;
   }
 
-  setBus(bus: Bus): void {
-    this.bus = bus;
+  reset(): void {
+    this.a = this.x = this.y = this.cycles = 0;
+    this.s = 0xfd;
+    this.p = 0x24;
+    this.pc = this.readWord(0xfffc);
+  }
+
+  tick(): number {
+    if (this.cycles === 0) {
+      this.ecb?.(this);
+
+      this.ir = this.read();
+      this.cycles = this.it[this.ir][2];
+      this.it[this.ir][1].call(this);
+      this.it[this.ir][0].call(this);
+
+      this.flag(Flag.U, 1);
+    }
+
+    --this.cycles;
+
+    if (this.cycles === 0) {
+      if (this.ir < 0) {
+        return 1;
+      }
+
+      if (this.nmiScheduled) {
+        this.nmiScheduled = false;
+        this.initNMI();
+      } else if (this.irqScheduled) {
+        this.irqScheduled = false;
+        !this.flag(Flag.I) && this.initIRQ();
+      }
+
+      return 0;
+    }
+
+    return this.cycles;
+  }
+
+  irq(): void {
+    this.irqScheduled = true;
+  }
+
+  nmi(): void {
+    this.nmiScheduled = true;
   }
 
   disableDecimalMode(): void {
     this.dmEnabled = false;
   }
 
-  reset(): void {
-    this.a = this.x = this.y = 0;
-    this.s = 0xfd;
-    this.p = 0x24;
-    this.pc = this.readWord(0xfffc);
-  }
-
-  irq(): void {
-    if (this.flag(Flag.I)) {
-      return;
-    }
-
-    this.pushWord(this.pc);
-    this.push(this.p);
-    this.flag(Flag.I, 1);
-    this.pc = this.readWord(0xfffe);
-  }
-
-  nmi(): void {
-    this.pushWord(this.pc);
-    this.push(this.p);
-    this.flag(Flag.I, 1);
-    this.pc = this.readWord(0xfffa);
-  }
-
-  exec(): void {
-    this.ecb?.(this);
-
-    const opcode = this.read();
-
-    this.it[opcode][1].call(this);
-    this.it[opcode][0].call(this);
-
-    this.flag(Flag.U, 1);
-  }
-
-  onRead(cb: (addr: number, byte: number) => void): void {
+  onRead(cb: (addr: number, val: number) => void): void {
     this.rcb = cb;
   }
 
-  onWrite(cb: (addr: number, byte: number) => void): void {
+  onWrite(cb: (addr: number, val: number) => void): void {
     this.wcb = cb;
   }
 
@@ -190,12 +204,30 @@ export class CPU {
     this.ecb = cb;
   }
 
+  private initIRQ(): void {
+    this.pushWord(this.pc);
+    this.push(this.p);
+    this.flag(Flag.I, 1);
+    this.pc = this.readWord(0xfffe);
+    this.ir = -1;
+    this.cycles = 7;
+  }
+
+  private initNMI(): void {
+    this.pushWord(this.pc);
+    this.push(this.p);
+    this.flag(Flag.I, 1);
+    this.pc = this.readWord(0xfffa);
+    this.ir = -1;
+    this.cycles = 8;
+  }
+
   private read(addr?: number): number {
     addr = addr == null ? this.pc++ : addr & 0xffff;
-    const byte = this.bus.read(addr);
-    this.rcb?.(addr, byte);
+    const val = this.bus.read(addr);
+    this.rcb?.(addr, val);
 
-    return byte;
+    return val;
   }
 
   private readWord(addr?: number, zeroPage: boolean = false): number {
@@ -208,11 +240,11 @@ export class CPU {
     return this.read(addr & m) | (this.read((addr + 1) & m) << 8);
   }
 
-  private write(addr: number, byte: number): void {
+  private write(addr: number, val: number): void {
     addr &= 0xffff;
-    byte &= 0xff;
-    this.wcb?.(addr, byte);
-    this.bus.write(addr, byte);
+    val &= 0xff;
+    this.wcb?.(addr, val);
+    this.bus.write(addr, val);
   }
 
   private flag(flag: Flag): number;
