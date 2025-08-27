@@ -13,6 +13,9 @@ enum Flag {
 
 type Instruction = [() => void, () => void, number];
 
+const OAMDATA = 0x2004;
+const OAMDMA = 0x4014;
+
 export class CPU {
   // accumulator
   private _a: number = 0;
@@ -85,6 +88,10 @@ export class CPU {
 
   private cycles: number = 0;
 
+  private dma: number = 0;
+
+  private dmaAddr: number = 0;
+
   private pageCrossed: boolean = false;
 
   private dmEnabled: boolean = true;
@@ -92,6 +99,8 @@ export class CPU {
   private irqScheduled: boolean = false;
 
   private nmiScheduled: boolean = false;
+
+  private dmaScheduled: boolean = false;
 
   private rcb: ((addr: number, val: number) => void) | null = null;
 
@@ -149,6 +158,23 @@ export class CPU {
 
   tick(): number {
     if (this.cycles === 0) {
+      if (this.dmaScheduled) {
+        this.dmaScheduled = false;
+        this.dma = 512;
+
+        return 1;
+      }
+
+      if (this.dma) {
+        if (this.dma & 1) {
+          this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
+        }
+
+        --this.dma;
+
+        return 1;
+      }
+
       this.ecb?.(this);
 
       this.ir = this.read();
@@ -224,7 +250,7 @@ export class CPU {
 
   private read(addr?: number): number {
     addr = addr == null ? this.pc++ : addr & 0xffff;
-    const val = this.bus.read(addr);
+    const val = OAMDMA === addr ? 0 : this.bus.read(addr);
     this.rcb?.(addr, val);
 
     return val;
@@ -244,7 +270,13 @@ export class CPU {
     addr &= 0xffff;
     val &= 0xff;
     this.wcb?.(addr, val);
-    this.bus.write(addr, val);
+
+    if (OAMDMA === addr) {
+      this.dmaScheduled = true;
+      this.dmaAddr = val << 8;
+    } else {
+      this.bus.write(addr, val);
+    }
   }
 
   private flag(flag: Flag): number;
@@ -259,7 +291,7 @@ export class CPU {
 
   // push on the stack
   private push(val: number): void {
-    this.write(0x100 + this.s--, val);
+    this.write(0x0100 | this.s--, val);
   }
 
   private pushWord(val: number): void {
@@ -271,7 +303,7 @@ export class CPU {
   private pop(): number {
     ++this.s;
 
-    return this.read(0x100 + this.s);
+    return this.read(0x0100 | this.s);
   }
 
   private popWord(): number {
