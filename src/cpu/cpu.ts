@@ -1,4 +1,4 @@
-import { Bus } from './bus';
+import { Bus } from '../bus';
 
 enum Flag {
   C = 1 << 0,
@@ -289,6 +289,12 @@ export class CPU {
     val ? (this.p |= flag) : (this.p &= ~flag);
   }
 
+  private fetchOperand(): void {
+    if (this.addr >= 0) {
+      this.o = this.read(this.addr);
+    }
+  }
+
   // push on the stack
   private push(val: number): void {
     this.write(0x0100 | this.s--, val);
@@ -332,19 +338,16 @@ export class CPU {
   // Zero Page
   private zpg(): void {
     this.addr = this.read();
-    this.o = this.read(this.addr);
   }
 
   // Zero Page,X
   private zpx(): void {
     this.addr = (this.read() + this.x) & 0xff;
-    this.o = this.read(this.addr);
   }
 
   // Zero Page,Y
   private zpy(): void {
     this.addr = (this.read() + this.y) & 0xff;
-    this.o = this.read(this.addr);
   }
 
   // Relative
@@ -366,7 +369,6 @@ export class CPU {
     const page = this.addr & 0xff00;
     this.addr += index;
     this.pageCrossed = page !== (this.addr & 0xff00);
-    this.o = this.read(this.addr);
   }
 
   // Absolute,X
@@ -388,14 +390,11 @@ export class CPU {
     } else {
       this.addr = this.readWord(this.addr);
     }
-
-    this.o = this.read(this.addr);
   }
 
   // Indexed Indirect
   private iix(): void {
     this.addr = this.readWord(this.read() + this.x, true);
-    this.o = this.read(this.addr);
   }
 
   // Indirect Indexed
@@ -404,12 +403,15 @@ export class CPU {
     const page = this.addr & 0xff00;
     this.addr += this.y;
     this.pageCrossed = page !== (this.addr & 0xff00);
-    this.o = this.read(this.addr);
   }
 
   // INSTRUCTIONS
 
-  private adc(): void {
+  private adc(operandFetched: boolean = false): void {
+    if (!operandFetched) {
+      this.fetchOperand();
+    }
+
     if (this.flag(Flag.D) && this.dmEnabled) {
       return this.adcd();
     }
@@ -455,6 +457,8 @@ export class CPU {
   }
 
   private and(): void {
+    this.fetchOperand();
+
     this.a &= this.o;
 
     this.flag(Flag.Z, !this.a);
@@ -464,6 +468,8 @@ export class CPU {
   }
 
   private asl(): void {
+    this.fetchOperand();
+
     this.flag(Flag.C, this.o & 0x80);
 
     this.o = this.o << 1;
@@ -499,6 +505,8 @@ export class CPU {
   }
 
   private bit(): void {
+    this.fetchOperand();
+
     this.flag(Flag.Z, !(this.a & this.o));
     this.flag(Flag.V, this.o & 0x40);
     this.flag(Flag.N, this.o & 0x80);
@@ -572,6 +580,8 @@ export class CPU {
   }
 
   private cmp(): void {
+    this.fetchOperand();
+
     this.flag(Flag.C, this.a >= this.o);
     this.flag(Flag.Z, this.a === this.o);
     this.flag(Flag.N, (this.a - this.o) & 0x80);
@@ -580,18 +590,24 @@ export class CPU {
   }
 
   private cpx(): void {
+    this.fetchOperand();
+
     this.flag(Flag.C, this.x >= this.o);
     this.flag(Flag.Z, this.x === this.o);
     this.flag(Flag.N, (this.x - this.o) & 0x80);
   }
 
   private cpy(): void {
+    this.fetchOperand();
+
     this.flag(Flag.C, this.y >= this.o);
     this.flag(Flag.Z, this.y === this.o);
     this.flag(Flag.N, (this.y - this.o) & 0x80);
   }
 
   private dec(): void {
+    this.fetchOperand();
+
     --this.o;
     this.write(this.addr, this.o);
 
@@ -616,6 +632,8 @@ export class CPU {
   }
 
   private eor(): void {
+    this.fetchOperand();
+
     this.a ^= this.o;
 
     this.flag(Flag.Z, !this.a);
@@ -625,6 +643,8 @@ export class CPU {
   }
 
   private inc(): void {
+    this.fetchOperand();
+
     ++this.o;
     this.write(this.addr, this.o);
 
@@ -659,6 +679,8 @@ export class CPU {
   }
 
   private lda(): void {
+    this.fetchOperand();
+
     this.a = this.o;
 
     this.flag(Flag.Z, !this.a);
@@ -668,6 +690,8 @@ export class CPU {
   }
 
   private ldx(): void {
+    this.fetchOperand();
+
     this.x = this.o;
 
     this.flag(Flag.Z, !this.x);
@@ -677,6 +701,8 @@ export class CPU {
   }
 
   private ldy(): void {
+    this.fetchOperand();
+
     this.y = this.o;
 
     this.flag(Flag.Z, !this.y);
@@ -686,6 +712,8 @@ export class CPU {
   }
 
   private lsr(): void {
+    this.fetchOperand();
+
     this.flag(Flag.C, this.o & 0x1);
 
     this.o = this.o >> 1;
@@ -707,6 +735,8 @@ export class CPU {
   }
 
   private ora(): void {
+    this.fetchOperand();
+
     this.a |= this.o;
 
     this.flag(Flag.Z, !this.a);
@@ -735,6 +765,8 @@ export class CPU {
   }
 
   private rol(): void {
+    this.fetchOperand();
+
     const cf = this.flag(Flag.C);
 
     this.flag(Flag.C, this.o & 0x80);
@@ -754,6 +786,8 @@ export class CPU {
   }
 
   private ror(): void {
+    this.fetchOperand();
+
     const cf = this.flag(Flag.C);
 
     this.flag(Flag.C, this.o & 0x01);
@@ -782,6 +816,8 @@ export class CPU {
   }
 
   private sbc(): void {
+    this.fetchOperand();
+
     if (this.flag(Flag.D) && this.dmEnabled) {
       return this.sbcd();
     }
@@ -790,7 +826,7 @@ export class CPU {
     // = a + ~m + 1 - 1 + c = a + ~m + c
     // so addition can be used
     this.o = ~this.o;
-    this.adc();
+    this.adc(true);
   }
 
   private sbcd(): void {
