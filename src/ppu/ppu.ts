@@ -1,6 +1,6 @@
 import { Bus } from '../bus';
-import { PALETTE } from './palette';
 import { Screen } from '../screen/screen';
+import { PALETTE } from './palette';
 
 export enum PPURegister {
   Ctrl,
@@ -18,23 +18,22 @@ class ShiftRegister {
 
   private hi: number = 0;
 
-  get(offset: number): number {
-    offset = 0x07 ^ (offset & 0x07);
+  private offset: number = 15;
 
-    return (
-      ((this.lo >> (0x08 | offset)) & 0x01) |
-      (((this.hi >> (0x08 | offset)) & 0x01) << 1)
-    );
+  get(offset: number = 0): number {
+    offset = this.offset - (offset & 0x07);
+
+    return ((this.lo >> offset) & 0x01) | (((this.hi >> offset) & 0x01) << 1);
   }
 
   set(lo: number, hi: number): void {
-    this.lo |= lo & 0xff;
-    this.hi |= hi & 0xff;
+    this.offset = 15;
+    this.lo = (this.lo << 8) | (lo & 0xff);
+    this.hi = (this.hi << 8) | (hi & 0xff);
   }
 
   shift(): void {
-    this.lo <<= 1;
-    this.hi <<= 1;
+    --this.offset;
   }
 }
 
@@ -51,11 +50,11 @@ export class PPU {
 
   private oam: number[] = new Array(256).fill(0);
 
+  private store: number[] = new Array(4).fill(0);
+
   private curSprites: number[] = [];
 
   private nextSprites: number[] = [];
-
-  private store: number[] = new Array(4).fill(0);
 
   private shifters: [ShiftRegister, ShiftRegister] = [
     new ShiftRegister(),
@@ -217,7 +216,8 @@ export class PPU {
     // draw a transparent pixel
     if (
       !this.isRenderingEnabled() &&
-      this.cycle > 0 &&
+      this.cycle >= 1 &&
+      256 >= this.cycle &&
       this.scanline >= 0 &&
       239 >= this.scanline
     ) {
@@ -267,8 +267,8 @@ export class PPU {
     return 0;
   }
 
-  private isRenderingEnabled(): boolean {
-    return Boolean(this.registers[PPURegister.Mask] & 0x18);
+  private isRenderingEnabled(): number {
+    return this.registers[PPURegister.Mask] & 0x18;
   }
 
   private reloadShifters(): void {
@@ -311,50 +311,25 @@ export class PPU {
     const y = this.scanline;
     const greyscale = this.registers[PPURegister.Mask] & 0x01;
     const backdrop = this.bus.read(0x3f00);
-    const bgPixel = this.getBgPixel(x);
-    const [sprPixel, sprPriority] = this.getSprPixel(x, bgPixel !== backdrop);
-    const color =
-      bgPixel === backdrop || (0 === sprPriority && sprPixel !== backdrop)
-        ? sprPixel
-        : bgPixel;
 
-    this.screen.setPixel(
-      x,
-      y,
-      greyscale ? PALETTE[color & 0x30] : PALETTE[color]
-    );
-  }
-
-  private getBgPixel(pixelX: number): number {
     const bgEnabled =
       this.registers[PPURegister.Mask] & 0x08 &&
-      (this.registers[PPURegister.Mask] & 0x02 || pixelX > 7);
-    const colorIndex = this.shifters[0].get(this.x);
+      (this.registers[PPURegister.Mask] & 0x02 || x > 7);
+    const bgColorIndex = this.shifters[0].get(this.x);
+    const bgPaletteIndex = this.shifters[1].get(this.x);
+    const bgPixel =
+      bgEnabled && bgColorIndex > 0
+        ? this.bus.read(0x3f00 | (bgPaletteIndex << 2) | bgColorIndex)
+        : backdrop;
 
-    if (!bgEnabled || 0 === colorIndex) {
-      return this.bus.read(0x3f00);
-    }
-
-    const paletteIndex = this.shifters[1].get(this.x);
-
-    return this.bus.read(0x3f00 | (paletteIndex << 2) | colorIndex);
-  }
-
-  private getSprPixel(
-    pixelX: number,
-    opaqueBgPixel: boolean
-  ): [number, number] {
-    const backdrop = this.bus.read(0x3f00);
     const sprEnabled =
       this.registers[PPURegister.Mask] & 0x10 &&
-      (this.registers[PPURegister.Mask] & 0x04 || pixelX > 7);
+      (this.registers[PPURegister.Mask] & 0x04 || x > 7);
+    let sprPixel = backdrop;
+    let sprPriority = 1;
 
-    if (!sprEnabled) {
-      return [backdrop, 1];
-    }
-
-    for (let i = 0; i < this.curSprites.length; i += 6) {
-      const xOffset = pixelX - this.curSprites[i + 3];
+    for (let i = 0; sprEnabled && i < this.curSprites.length; i += 6) {
+      const xOffset = x - this.curSprites[i + 3];
 
       if (xOffset < 0 || xOffset > 7) {
         continue;
@@ -372,19 +347,31 @@ export class PPU {
       }
 
       // sprite 0 hit
-      if (0 === this.curSprites[i + 1] && this.cycle < 256 && opaqueBgPixel) {
+      if (
+        0 === this.curSprites[i + 1] &&
+        this.cycle < 256 &&
+        bgPixel !== backdrop
+      ) {
         this.registers[PPURegister.Status] |= 0x40;
       }
 
-      const paletteIndex = 4 + (this.curSprites[i + 2] & 0x03);
+      const paletteIndex = 0x04 | (this.curSprites[i + 2] & 0x03);
+      sprPixel = this.bus.read(0x3f00 | (paletteIndex << 2) | colorIndex);
+      sprPriority = this.curSprites[i + 2] & 0x20;
 
-      return [
-        this.bus.read(0x3f00 | (paletteIndex << 2) | colorIndex),
-        this.curSprites[i + 2] & 0x20,
-      ];
+      break;
     }
 
-    return [backdrop, 1];
+    const color =
+      bgPixel === backdrop || (0 === sprPriority && sprPixel !== backdrop)
+        ? sprPixel
+        : bgPixel;
+
+    this.screen.setPixel(
+      x,
+      y,
+      greyscale ? PALETTE[color & 0x30] : PALETTE[color]
+    );
   }
 
   private incHorPos(): void {

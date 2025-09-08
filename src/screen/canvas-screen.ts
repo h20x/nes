@@ -16,6 +16,8 @@ export class CanvasScreen implements Screen {
 
   private hImageData: ImageData;
 
+  private dataView: DataView;
+
   constructor(canvas: HTMLCanvasElement) {
     this.width = canvas.width;
     this.height = canvas.height;
@@ -28,17 +30,11 @@ export class CanvasScreen implements Screen {
     this.hCanvas.height = HEIGHT;
     this.hctx = this.hCanvas.getContext('2d', { alpha: false })!;
     this.hImageData = this.hctx.createImageData(WIDTH, HEIGHT);
-
-    for (let i = 3; i < this.hImageData.data.length; i += 4) {
-      this.hImageData.data[i] = 0xff;
-    }
+    this.dataView = new DataView(this.hImageData.data.buffer);
   }
 
   setPixel(x: number, y: number, color: number): void {
-    const i = (y * WIDTH + x) * 4;
-    this.hImageData.data[i] = (color & 0xff0000) >> 16;
-    this.hImageData.data[i + 1] = (color & 0x00ff00) >> 8;
-    this.hImageData.data[i + 2] = color & 0x0000ff;
+    this.dataView.setUint32((y * WIDTH + x) * 4, (color << 8) | 0xff);
   }
 
   update(): void {
