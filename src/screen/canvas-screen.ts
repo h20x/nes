@@ -41,4 +41,8 @@ export class CanvasScreen implements Screen {
     this.hctx.putImageData(this.hImageData, 0, 0);
     this.ctx.drawImage(this.hCanvas, 0, 0, this.width, this.height);
   }
+
+  clear(): void {
+    this.ctx.clearRect(0, 0, this.width, this.height);
+  }
 }
