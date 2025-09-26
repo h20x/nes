@@ -42,6 +42,8 @@ export class PPU {
 
   private scanline: number = 0;
 
+  private readBuffer: number = 0;
+
   private nmi: boolean = false;
 
   private oddFrame: boolean = false;
@@ -72,7 +74,7 @@ export class PPU {
   constructor(private bus: Bus, private screen: Screen) {}
 
   reset(): void {
-    this.cycle = this.scanline = this.t = this.x = 0;
+    this.cycle = this.scanline = this.t = this.x = this.readBuffer = 0;
     this.registers[PPURegister.Ctrl] = this.registers[PPURegister.Mask] = 0;
     this.nmi = this.oddFrame = this.w = false;
   }
@@ -98,10 +100,12 @@ export class PPU {
         return this.oam[this.registers[PPURegister.OAMAddr]];
       } else if (PPURegister.VRAMData === reg) {
         const val = this.bus.read(this.v);
+        const buf = this.readBuffer;
+        this.readBuffer = val;
         this.v += this.registers[PPURegister.Ctrl] & 0x04 ? 32 : 1;
         this.v &= 0x7fff;
 
-        return val;
+        return buf;
       }
 
       return 0;
@@ -119,7 +123,7 @@ export class PPU {
       }
 
       this.t &= ~0x0c00;
-      this.t |= val & 0x0c00;
+      this.t |= (val & 0x03) << 10;
       this.registers[reg] = val;
     } else if (PPURegister.Mask === reg) {
       this.registers[reg] = val;
@@ -224,7 +228,7 @@ export class PPU {
       this.screen.setPixel(
         this.cycle - 1,
         this.scanline,
-        this.bus.read(0x3f00)
+        PALETTE[this.bus.read(0x3f00)]
       );
     }
 
@@ -309,24 +313,16 @@ export class PPU {
   private drawPixel(): void {
     const x = this.cycle - 1;
     const y = this.scanline;
-    const greyscale = this.registers[PPURegister.Mask] & 0x01;
-    const backdrop = this.bus.read(0x3f00);
 
     const bgEnabled =
       this.registers[PPURegister.Mask] & 0x08 &&
       (this.registers[PPURegister.Mask] & 0x02 || x > 7);
-    const bgColorIndex = this.shifters[0].get(this.x);
-    const bgPaletteIndex = this.shifters[1].get(this.x);
-    const bgPixel =
-      bgEnabled && bgColorIndex > 0
-        ? this.bus.read(0x3f00 | (bgPaletteIndex << 2) | bgColorIndex)
-        : backdrop;
-
     const sprEnabled =
       this.registers[PPURegister.Mask] & 0x10 &&
       (this.registers[PPURegister.Mask] & 0x04 || x > 7);
-    let sprPixel = backdrop;
-    let sprPriority = 1;
+
+    let paletteIndex = this.shifters[1].get(this.x);
+    let colorIndex = bgEnabled ? this.shifters[0].get(this.x) : 0;
 
     for (let i = 0; sprEnabled && i < this.curSprites.length; i += 6) {
       const xOffset = x - this.curSprites[i + 3];
@@ -339,39 +335,40 @@ export class PPU {
       const hi = this.curSprites[i + 5];
       const hFlip = this.curSprites[i + 2] & 0x40;
       const offset = hFlip ? xOffset : 0x07 ^ xOffset;
-      const colorIndex =
-        ((lo >> offset) & 0x01) | (((hi >> offset) & 0x01) << 1);
+      const colIndex = ((lo >> offset) & 0x01) | (((hi >> offset) & 0x01) << 1);
 
-      if (0 === colorIndex) {
+      if (0 === colIndex) {
         continue;
       }
 
       // sprite 0 hit
       if (
-        0 === this.curSprites[i + 1] &&
+        0 === i &&
+        0 !== colorIndex &&
         this.cycle < 256 &&
-        bgPixel !== backdrop
+        this.curSprites[0] === this.oam[0] &&
+        this.curSprites[3] === this.oam[3]
       ) {
         this.registers[PPURegister.Status] |= 0x40;
       }
 
-      const paletteIndex = 0x04 | (this.curSprites[i + 2] & 0x03);
-      sprPixel = this.bus.read(0x3f00 | (paletteIndex << 2) | colorIndex);
-      sprPriority = this.curSprites[i + 2] & 0x20;
+      const priority = this.curSprites[i + 2] & 0x20;
+
+      if (0 === colorIndex || (0 === priority && 0 !== colIndex)) {
+        paletteIndex = 0x04 | (this.curSprites[i + 2] & 0x03);
+        colorIndex = colIndex;
+      }
 
       break;
     }
 
-    const color =
-      bgPixel === backdrop || (0 === sprPriority && sprPixel !== backdrop)
-        ? sprPixel
-        : bgPixel;
+    let color = this.bus.read(0x3f00 | (paletteIndex << 2) | colorIndex);
 
-    this.screen.setPixel(
-      x,
-      y,
-      greyscale ? PALETTE[color & 0x30] : PALETTE[color]
-    );
+    if (this.registers[PPURegister.Mask] & 0x01) {
+      color &= 0x30;
+    }
+
+    this.screen.setPixel(x, y, PALETTE[color]);
   }
 
   private incHorPos(): void {

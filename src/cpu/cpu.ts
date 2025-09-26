@@ -88,6 +88,8 @@ export class CPU {
 
   private cycles: number = 0;
 
+  private cyclesTotal: number = 0;
+
   private dma: number = 0;
 
   private dmaAddr: number = 0;
@@ -150,23 +152,25 @@ export class CPU {
   }
 
   reset(): void {
-    this.a = this.x = this.y = this.cycles = 0;
+    this.a = this.x = this.y = this.cycles = this.cyclesTotal = 0;
     this.s = 0xfd;
     this.p = 0x24;
     this.pc = this.readWord(0xfffc);
   }
 
   tick(): number {
+    ++this.cyclesTotal;
+
     if (this.cycles === 0) {
       if (this.dmaScheduled) {
         this.dmaScheduled = false;
-        this.dma = 512;
+        this.dma = this.cyclesTotal & 1 ? 513 : 512;
 
         return 1;
       }
 
       if (this.dma) {
-        if (this.dma & 1) {
+        if (this.dma < 512 && this.dma & 1) {
           this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
         }
 
