@@ -72,13 +72,8 @@ export class NES {
 
       while (!done) {
         done |= this.ppu.tick();
-
-        if (this.ppu.isNMI()) {
-          this.cpu.nmi();
-        }
-
+        this.ppu.isNMI() && this.cpu.nmi();
         this.cpu.tick();
-
         done |= this.ppu.tick();
         done |= this.ppu.tick();
       }

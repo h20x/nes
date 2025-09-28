@@ -167,13 +167,17 @@ export class PPU {
   tick(): number {
     if (
       this.isRenderingEnabled() &&
-      ((this.scanline >= 0 && 239 >= this.scanline) || 261 === this.scanline)
+      (239 >= this.scanline || 261 === this.scanline)
     ) {
       if (
         (this.cycle >= 1 && 256 >= this.cycle) ||
         (this.cycle >= 321 && 336 >= this.cycle)
       ) {
         const r = this.cycle % 8;
+
+        if (0 === r) {
+          this.incHorPos();
+        }
 
         if (1 === r) {
           this.reloadShifters();
@@ -182,10 +186,6 @@ export class PPU {
 
         if (this.cycle >= 1 && 256 >= this.cycle && 261 !== this.scanline) {
           this.drawPixel();
-        }
-
-        if (0 === r) {
-          this.incHorPos();
         }
 
         this.shifters[0].shift();
@@ -222,7 +222,6 @@ export class PPU {
       !this.isRenderingEnabled() &&
       this.cycle >= 1 &&
       256 >= this.cycle &&
-      this.scanline >= 0 &&
       239 >= this.scanline
     ) {
       this.screen.setPixel(
@@ -249,18 +248,17 @@ export class PPU {
 
     if (340 === this.cycle) {
       this.cycle = 0;
-
-      // skip 0 cycle
-      if (261 === this.scanline && this.oddFrame) {
-        this.cycle = 1;
-      }
-
       ++this.scanline;
     } else {
       ++this.cycle;
     }
 
     if (262 === this.scanline) {
+      // skip 0 cycle
+      if (this.oddFrame && this.isRenderingEnabled()) {
+        this.cycle = 1;
+      }
+
       this.scanline = 0;
       this.oddFrame = !this.oddFrame;
       this.screen.update();
