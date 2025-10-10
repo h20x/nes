@@ -17,9 +17,9 @@ export class PPUBus {
     } else if (addr >= 0x2000 && addr <= 0x3eff) {
       return this.getNametable(addr)[addr & 0x03ff];
     } else if (addr >= 0x3f00 && addr <= 0x3fff) {
-      addr &= 0x1f;
+      addr &= addr % 4 ? 0x1f : 0x00;
 
-      return this.palette[addr % 4 ? addr : 0];
+      return this.palette[addr];
     } else {
       throw new Error(`Address unmapped: ${addr.toString(16)}`);
     }
@@ -34,8 +34,8 @@ export class PPUBus {
     } else if (addr >= 0x2000 && addr <= 0x3eff) {
       this.getNametable(addr)[addr & 0x03ff] = val;
     } else if (addr >= 0x3f00 && addr <= 0x3fff) {
-      addr &= 0x1f;
-      this.palette[addr % 4 ? addr : 0] = val;
+      addr &= addr % 4 ? 0x1f : 0x0f;
+      this.palette[addr] = val;
     } else {
       throw new Error(`Address unmapped: ${addr.toString(16)}`);
     }
