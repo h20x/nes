@@ -1,10 +1,7 @@
-import { Mapper, Mirroring } from '../mapper/mapper';
+import { Bus } from '../bus';
+import { Mapper } from '../mapper/mapper';
 
-export class PPUBus {
-  private nametable0: number[] = new Array(1024).fill(0);
-
-  private nametable1: number[] = new Array(1024).fill(0);
-
+export class PPUBus implements Bus {
   private palette: number[] = new Array(32).fill(0);
 
   constructor(private mapper: Mapper) {}
@@ -14,14 +11,12 @@ export class PPUBus {
 
     if (this.mapper.ppuAddrMapped(addr)) {
       return this.mapper.ppuRead(addr);
-    } else if (addr >= 0x2000 && addr <= 0x3eff) {
-      return this.getNametable(addr)[addr & 0x03ff];
     } else if (addr >= 0x3f00 && addr <= 0x3fff) {
       addr &= addr % 4 ? 0x1f : 0x00;
 
       return this.palette[addr];
     } else {
-      throw new Error(`Address unmapped: ${addr.toString(16)}`);
+      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
     }
   }
 
@@ -31,28 +26,15 @@ export class PPUBus {
 
     if (this.mapper.ppuAddrMapped(addr)) {
       this.mapper.ppuWrite(addr, val);
-    } else if (addr >= 0x2000 && addr <= 0x3eff) {
-      this.getNametable(addr)[addr & 0x03ff] = val;
     } else if (addr >= 0x3f00 && addr <= 0x3fff) {
       addr &= addr % 4 ? 0x1f : 0x0f;
       this.palette[addr] = val;
     } else {
-      throw new Error(`Address unmapped: ${addr.toString(16)}`);
+      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
     }
   }
 
-  private getNametable(addr: number): number[] {
-    addr &= 0x0fff;
-
-    if (Mirroring.Horizontal === this.mapper.getMirroring()) {
-      return addr >= 0x0000 && addr <= 0x07ff
-        ? this.nametable0
-        : this.nametable1;
-    }
-
-    return (addr >= 0x0000 && addr <= 0x03ff) ||
-      (addr >= 0x0800 && addr <= 0x0bff)
-      ? this.nametable0
-      : this.nametable1;
+  scanline(): void {
+    this.mapper.scanline();
   }
 }

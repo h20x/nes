@@ -14,6 +14,8 @@ export class CPUBus implements Bus {
   ) {}
 
   read(addr: number): number {
+    addr &= 0xffff;
+
     if (this.mapper.cpuAddrMapped(addr)) {
       return this.mapper.cpuRead(addr);
     } else if (addr >= 0x0000 && addr <= 0x1fff) {
@@ -30,12 +32,17 @@ export class CPUBus implements Bus {
       }
 
       return 0;
+    } else if (addr >= 0x4018 && addr <= 0x401f) {
+      return 0;
     } else {
-      throw new Error(`Address unmapped: ${addr.toString(16)}`);
+      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
     }
   }
 
   write(addr: number, val: number): void {
+    addr &= 0xffff;
+    val &= 0xff;
+
     if (this.mapper.cpuAddrMapped(addr)) {
       this.mapper.cpuWrite(addr, val);
     } else if (addr >= 0x0000 && addr <= 0x1fff) {
@@ -43,8 +50,9 @@ export class CPUBus implements Bus {
     } else if (addr >= 0x2000 && addr <= 0x3fff) {
       this.ppu.register(addr & 0x07, val);
     } else if (addr >= 0x4000 && addr <= 0x4017) {
+    } else if (addr >= 0x4018 && addr <= 0x401f) {
     } else {
-      throw new Error(`Address unmapped: ${addr.toString(16)}`);
+      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
     }
   }
 }

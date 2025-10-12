@@ -1,6 +1,6 @@
-import { Bus } from '../bus';
 import { Screen } from '../screen/screen';
 import { PALETTE } from './palette';
+import { PPUBus } from './ppu-bus';
 
 export enum PPURegister {
   Ctrl,
@@ -71,7 +71,7 @@ export class PPU {
 
   private w: boolean = false;
 
-  constructor(private bus: Bus, private screen: Screen) {}
+  constructor(private bus: PPUBus, private screen: Screen) {}
 
   reset(): void {
     this.cycle = this.scanline = this.t = this.x = this.readBuffer = 0;
@@ -208,6 +208,10 @@ export class PPU {
       if (257 === this.cycle) {
         this.v &= ~0x041f;
         this.v |= this.t & 0x041f;
+      }
+
+      if (260 === this.cycle) {
+        this.bus.scanline();
       }
 
       // copy vertical position from t to v
