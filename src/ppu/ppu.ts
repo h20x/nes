@@ -58,10 +58,9 @@ export class PPU {
 
   private nextSprites: number[] = [];
 
-  private shifters: [ShiftRegister, ShiftRegister] = [
-    new ShiftRegister(),
-    new ShiftRegister(),
-  ];
+  private tileShifter: ShiftRegister = new ShiftRegister();
+
+  private attrShifter: ShiftRegister = new ShiftRegister();
 
   private v: number = 0;
 
@@ -188,8 +187,8 @@ export class PPU {
           this.drawPixel();
         }
 
-        this.shifters[0].shift();
-        this.shifters[1].shift();
+        this.tileShifter.shift();
+        this.attrShifter.shift();
       }
 
       if (65 === this.cycle && 261 !== this.scanline) {
@@ -283,8 +282,8 @@ export class PPU {
     const y = ((this.v >> 5) & 0x03) >> 1;
     const a = attr >> ((y << 2) | (x << 1));
 
-    this.shifters[0].set(this.store[2], this.store[3]);
-    this.shifters[1].set(a & 0x01 ? 0xff : 0, a & 0x02 ? 0xff : 0);
+    this.tileShifter.set(this.store[2], this.store[3]);
+    this.attrShifter.set(a & 0x01 ? 0xff : 0, a & 0x02 ? 0xff : 0);
   }
 
   private fetchBgTile(): void {
@@ -323,8 +322,8 @@ export class PPU {
       this.registers[PPURegister.Mask] & 0x10 &&
       (this.registers[PPURegister.Mask] & 0x04 || x > 7);
 
-    let paletteIndex = this.shifters[1].get(this.x);
-    let colorIndex = bgEnabled ? this.shifters[0].get(this.x) : 0;
+    let paletteIndex = this.attrShifter.get(this.x);
+    let colorIndex = bgEnabled ? this.tileShifter.get(this.x) : 0;
 
     for (let i = 0; sprEnabled && i < this.curSprites.length; i += 6) {
       const xOffset = x - this.curSprites[i + 3];
