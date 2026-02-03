@@ -1,3 +1,4 @@
+import { APU } from './apu';
 import { Button, Controller, ControllerKeys } from './controller';
 import { CPU, CPUBus } from './cpu';
 import { Mapper } from './mapper';
@@ -20,6 +21,8 @@ export class NES {
 
   private ppu!: PPU;
 
+  private apu!: APU;
+
   private mapper!: Mapper;
 
   private controller1!: Controller;
@@ -33,9 +36,9 @@ export class NES {
     private keys: ControllerKeys = DEFAULT_KEYS
   ) {}
 
-  play(mapper: Mapper): void {
+  async play(mapper: Mapper): Promise<void> {
     this.destroy();
-    this.init(mapper);
+    await this.init(mapper);
     this.reset();
     this.startGameLoop();
   }
@@ -43,17 +46,26 @@ export class NES {
   reset(): void {
     this.cpu?.reset();
     this.ppu?.reset();
+    this.apu?.reset();
   }
 
-  private init(mapper: Mapper): void {
+  private async init(mapper: Mapper): Promise<void> {
     this.mapper = mapper;
     this.ppu = new PPU(new PPUBus(this.mapper), this.screen);
+    this.apu = new APU();
     this.controller1 = new Controller();
     this.controller2 = new Controller();
     this.controller1.bindKeys(this.keys);
     this.cpu = new CPU(
-      new CPUBus(this.ppu, this.mapper, this.controller1, this.controller2)
+      new CPUBus(
+        this.ppu,
+        this.apu,
+        this.mapper,
+        this.controller1,
+        this.controller2
+      )
     );
+    await this.apu.init();
   }
 
   private destroy(): void {
@@ -72,7 +84,9 @@ export class NES {
         done |= this.ppu.tick();
         this.ppu.isNMI() && this.cpu.nmi();
         this.mapper.isIRQ() && this.cpu.irq();
+        this.apu.isIRQ() && this.cpu.irq();
         this.cpu.tick();
+        this.apu.tick();
         done |= this.ppu.tick();
         done |= this.ppu.tick();
       }

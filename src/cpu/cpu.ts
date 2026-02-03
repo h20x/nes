@@ -1,5 +1,7 @@
 import { Bus } from '../bus';
 
+export const CPU_CLOCK_RATE = 1789773;
+
 enum Flag {
   C = 1 << 0,
   Z = 1 << 1,

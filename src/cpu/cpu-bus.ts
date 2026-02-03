@@ -1,17 +1,21 @@
+import { APU } from '../apu';
 import { Bus } from '../bus';
 import { Controller } from '../controller';
-import { Mapper } from '../mapper/mapper';
-import { PPU } from '../ppu/ppu';
+import { Mapper } from '../mapper';
+import { PPU } from '../ppu';
 
 export class CPUBus implements Bus {
   private ram: number[] = new Array(2048).fill(0);
 
   constructor(
     private ppu: PPU,
+    private apu: APU,
     private mapper: Mapper,
     private controller1: Controller,
     private controller2: Controller
-  ) {}
+  ) {
+    apu.setBus(this);
+  }
 
   read(addr: number): number {
     addr &= 0xffff;
@@ -23,6 +27,10 @@ export class CPUBus implements Bus {
     } else if (addr >= 0x2000 && addr <= 0x3fff) {
       return this.ppu.register(addr & 0x07);
     } else if (addr >= 0x4000 && addr <= 0x4017) {
+      if (addr === 0x4015) {
+        return this.apu.register(0x15);
+      }
+
       if (addr === 0x4016) {
         return this.controller1.read();
       }
@@ -50,6 +58,7 @@ export class CPUBus implements Bus {
     } else if (addr >= 0x2000 && addr <= 0x3fff) {
       this.ppu.register(addr & 0x07, val);
     } else if (addr >= 0x4000 && addr <= 0x4017) {
+      this.apu.register(addr & 0x1f, val);
     } else if (addr >= 0x4018 && addr <= 0x401f) {
     } else {
       throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
