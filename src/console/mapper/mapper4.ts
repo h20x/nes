@@ -9,11 +9,11 @@ export class Mapper4 extends Mapper {
 
   private irq: boolean = false;
 
+  private irqEnabled: boolean = false;
+
   private irqCounter: number = 0;
 
   private irqReloadValue: number = 0;
-
-  private irqEnabled: boolean = false;
 
   constructor(
     prg: ArrayLike<number>,

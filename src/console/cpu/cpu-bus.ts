@@ -43,7 +43,7 @@ export class CPUBus implements Bus {
     } else if (addr >= 0x4018 && addr <= 0x401f) {
       return 0;
     } else {
-      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
+      throw new Error(`Unmapped address 0x${addr.toString(16)}`);
     }
   }
 
@@ -61,7 +61,7 @@ export class CPUBus implements Bus {
       this.apu.register(addr & 0x1f, val);
     } else if (addr >= 0x4018 && addr <= 0x401f) {
     } else {
-      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
+      throw new Error(`Unmapped address 0x${addr.toString(16)}`);
     }
   }
 }

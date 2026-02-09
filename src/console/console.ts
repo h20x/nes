@@ -8,7 +8,7 @@ import { Screen } from './screen';
 const DEFAULT_KEYS: ControllerKeys = {
   KeyZ: Button.A,
   KeyX: Button.B,
-  ShiftRight: Button.Select,
+  Tab: Button.Select,
   Enter: Button.Start,
   ArrowUp: Button.Up,
   ArrowDown: Button.Down,
@@ -16,7 +16,7 @@ const DEFAULT_KEYS: ControllerKeys = {
   ArrowRight: Button.Right,
 };
 
-export class NES {
+export class Console {
   private cpu!: CPU;
 
   private ppu!: PPU;

@@ -1,0 +1,20 @@
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.screen {
+  display: block;
+  background: #000;
+}
+
+.controls {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 20px 0;
+}

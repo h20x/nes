@@ -1,5 +1,5 @@
 import { Bus } from '../bus';
-import { Mapper } from '../mapper/mapper';
+import { Mapper } from '../mapper';
 
 export class PPUBus implements Bus {
   private palette: number[] = new Array(32).fill(0);
@@ -16,7 +16,7 @@ export class PPUBus implements Bus {
 
       return this.palette[addr];
     } else {
-      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
+      throw new Error(`Unmapped address 0x${addr.toString(16)}`);
     }
   }
 
@@ -30,7 +30,7 @@ export class PPUBus implements Bus {
       addr &= addr % 4 ? 0x1f : 0x0f;
       this.palette[addr] = val;
     } else {
-      throw new Error(`Unmapped address: 0x${addr.toString(16)}`);
+      throw new Error(`Unmapped address 0x${addr.toString(16)}`);
     }
   }
 

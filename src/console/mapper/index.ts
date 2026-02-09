@@ -48,7 +48,7 @@ export function createMapper(buffer: ArrayBuffer): Mapper {
       return new Mapper7(prg, chr, mirroring, altNametableLayout);
 
     default:
-      throw new Error(`Unsupported mapper: ${mapperNum}`);
+      throw new Error(`Unsupported mapper ${mapperNum}`);
   }
 }
 
