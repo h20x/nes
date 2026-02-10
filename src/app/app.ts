@@ -9,26 +9,24 @@ const btnReset = document.querySelector('.btn-reset')!;
 const screen = document.querySelector('.screen') as HTMLCanvasElement;
 
 fileInput.addEventListener('change', handleFileSelection);
-btnReset.addEventListener('click', play);
+btnReset.addEventListener('click', () => play());
 
 function handleFileSelection(e: Event) {
   const file = (e.target as HTMLInputElement).files![0];
+
+  if (!file) {
+    return;
+  }
+
   const reader = new FileReader();
 
-  reader.onload = () => {
-    gameData = reader.result as ArrayBuffer;
-    play();
-  };
-
-  reader.onerror = () => {
-    notifyErr(`Failed reading file "${file.name}"`);
-  };
-
+  reader.onload = () => play(reader.result as ArrayBuffer);
+  reader.onerror = () => notifyErr(`Failed reading file "${file.name}"`);
   reader.readAsArrayBuffer(file);
 }
 
-function play() {
-  if (!gameData) {
+function play(data: ArrayBuffer = gameData) {
+  if (!data) {
     return;
   }
 
@@ -37,7 +35,8 @@ function play() {
   }
 
   try {
-    nes.play(createMapper(gameData));
+    nes.play(createMapper(data));
+    gameData = data;
   } catch (err) {
     notifyErr(err as Error);
   }
