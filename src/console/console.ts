@@ -43,16 +43,20 @@ export class Console {
     this.startGameLoop();
   }
 
-  reset(): void {
+  private reset(): void {
     this.cpu?.reset();
     this.ppu?.reset();
     this.apu?.reset();
   }
 
   private async init(mapper: Mapper): Promise<void> {
+    if (!this.apu) {
+      this.apu = new APU();
+      await this.apu.init();
+    }
+
     this.mapper = mapper;
     this.ppu = new PPU(new PPUBus(this.mapper), this.screen);
-    this.apu = new APU();
     this.controller1 = new Controller();
     this.controller2 = new Controller();
     this.controller1.bindKeys(this.keys);
@@ -65,7 +69,6 @@ export class Console {
         this.controller2
       )
     );
-    await this.apu.init();
   }
 
   private destroy(): void {
