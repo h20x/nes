@@ -1,4 +1,4 @@
-import { Screen } from '../screen/screen';
+import { Screen } from '../screen';
 import { PALETTE } from './palette';
 import { PPUBus } from './ppu-bus';
 

@@ -1,4 +1,4 @@
-import { Bus } from '../src/bus';
+import { Bus } from '../src/console/bus';
 
 export class TestBus implements Bus {
   private ram: number[] = new Array(65536).fill(0);

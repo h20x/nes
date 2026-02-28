@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { CPU } from '../src/cpu/cpu';
+import { CPU } from '../src/console/cpu';
 
 // prettier-ignore
 export const INSTRUCTIONS = [

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { Bus } from '../src/bus';
-import { CPU } from '../src/cpu/cpu';
+import { Bus } from '../src/console/bus';
+import { CPU } from '../src/console/cpu';
 import { TestBus } from './bus';
 import { Logger } from './logger';
 
