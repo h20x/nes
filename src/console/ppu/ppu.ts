@@ -48,6 +48,10 @@ export class PPU {
 
   private oddFrame: boolean = false;
 
+  private renderingEnabled: boolean = false;
+
+  private renderingToggleDelay: number = 0;
+
   private registers: number[] = new Array(9).fill(0);
 
   private oam: number[] = new Array(256).fill(0);
@@ -125,7 +129,13 @@ export class PPU {
       this.t |= (val & 0x03) << 10;
       this.registers[reg] = val;
     } else if (PPURegister.Mask === reg) {
+      const prev = this.renderingEnabled;
       this.registers[reg] = val;
+      this.renderingEnabled = Boolean(val & 0x18);
+
+      if (this.renderingEnabled !== prev) {
+        this.renderingToggleDelay = 4;
+      }
     } else if (PPURegister.OAMAddr === reg) {
       this.registers[reg] = val;
     } else if (PPURegister.OAMData === reg) {
@@ -164,10 +174,15 @@ export class PPU {
   }
 
   tick(): number {
-    if (
-      this.isRenderingEnabled() &&
-      (239 >= this.scanline || 261 === this.scanline)
-    ) {
+    if (this.renderingToggleDelay > 0) {
+      --this.renderingToggleDelay;
+    }
+
+    const renEnabled =
+      (this.renderingEnabled && this.renderingToggleDelay === 0) ||
+      (!this.renderingEnabled && this.renderingToggleDelay > 0);
+
+    if (renEnabled && (239 >= this.scanline || 261 === this.scanline)) {
       if (
         (this.cycle >= 1 && 256 >= this.cycle) ||
         (this.cycle >= 321 && 336 >= this.cycle)
@@ -222,7 +237,7 @@ export class PPU {
 
     // draw a transparent pixel
     if (
-      !this.isRenderingEnabled() &&
+      !renEnabled &&
       this.cycle >= 1 &&
       256 >= this.cycle &&
       239 >= this.scanline
@@ -258,7 +273,7 @@ export class PPU {
 
     if (262 === this.scanline) {
       // skip 0 cycle
-      if (this.oddFrame && this.isRenderingEnabled()) {
+      if (this.oddFrame && renEnabled) {
         this.cycle = 1;
       }
 
@@ -270,10 +285,6 @@ export class PPU {
     }
 
     return 0;
-  }
-
-  private isRenderingEnabled(): number {
-    return this.registers[PPURegister.Mask] & 0x18;
   }
 
   private reloadShifters(): void {
