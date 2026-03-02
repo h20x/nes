@@ -20,6 +20,7 @@ type TestData = {
   name: string;
   initial: CPUState & { ram: Memory };
   final: CPUState & { ram: Memory };
+  cycles: [number, number, string];
 };
 
 const DEBUG = process.argv[2] === 'd';
@@ -203,9 +204,9 @@ function singleStepTests(): void {
   console.log(`++ single step tests (${dur} s)`);
 }
 
-function singleStepTest({ name, initial, final }: TestData): void {
+function singleStepTest({ name, initial, final, cycles }: TestData): void {
   const bus = new TestBus();
-  const cpu = new CPU(bus, initial);
+  const cpu = new CPU(bus, initial, true);
 
   const logger = DEBUG ? new Logger(cpu) : null;
 
@@ -215,9 +216,17 @@ function singleStepTest({ name, initial, final }: TestData): void {
 
   cpu.disableDecimalMode();
 
-  while (cpu.tick());
+  let nCycles = 1;
 
-  if (!compareCPUState(final, cpu) || !compareMem(final.ram, bus)) {
+  while (cpu.tick()) {
+    ++nCycles;
+  }
+
+  if (
+    !compareCPUState(final, cpu) ||
+    !compareMem(final.ram, bus) ||
+    nCycles !== cycles.length
+  ) {
     console.log(`\ntest: ${name}`);
 
     console.log('\ninitial');
@@ -227,10 +236,12 @@ function singleStepTest({ name, initial, final }: TestData): void {
     console.log('\nfinal');
     printCPUState(final);
     printMem(final.ram);
+    console.log(`cycles: ${cycles.length}`);
 
     console.log('\ncurrent');
     printCPUState(cpu);
     printMem(extractMem(final.ram, bus));
+    console.log(`cycles: ${nCycles}`);
 
     logger?.writeFile(name);
 

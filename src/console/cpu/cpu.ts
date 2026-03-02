@@ -142,7 +142,8 @@ export class CPU {
       p: number;
       s: number;
       pc: number;
-    }> = {}
+    }> = {},
+    private ignoreDMA: boolean = false
   ) {
     const { a = 0, x = 0, y = 0, p = 0, s = 0, pc = 0 } = state;
     this.a = a;
@@ -256,7 +257,7 @@ export class CPU {
 
   private read(addr?: number): number {
     addr = addr == null ? this.pc++ : addr & 0xffff;
-    const val = OAMDMA === addr ? 0 : this.bus.read(addr);
+    const val = OAMDMA === addr && !this.ignoreDMA ? 0 : this.bus.read(addr);
     this.rcb?.(addr, val);
 
     return val;
@@ -277,7 +278,7 @@ export class CPU {
     val &= 0xff;
     this.wcb?.(addr, val);
 
-    if (OAMDMA === addr) {
+    if (OAMDMA === addr && !this.ignoreDMA) {
       this.dmaScheduled = true;
       this.dmaAddr = val << 8;
     } else {
