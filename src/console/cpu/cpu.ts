@@ -360,14 +360,13 @@ export class CPU {
   // Relative
   private rel(): void {
     this.addr = -1;
-    this.o = this.read();
+    let offset = (this.o = this.read());
 
-    if (this.o & 0x80) {
-      this.o |= ~0xff;
+    if (offset & 0x80) {
+      offset |= ~0xff;
     }
 
-    const page = this.pc & 0xff00;
-    this.pageCrossed = page !== ((this.pc + this.o) & 0xff00);
+    this.pageCrossed = (this.pc & 0xff00) !== ((this.pc + offset) & 0xff00);
   }
 
   // Absolute
@@ -489,8 +488,6 @@ export class CPU {
     } else {
       this.write(this.addr, this.o);
     }
-
-    this.cycles += +this.pageCrossed;
   }
 
   private bcc(): void {
@@ -538,13 +535,13 @@ export class CPU {
   }
 
   private bra(): void {
-    let rel = this.o;
+    let offset = this.o;
 
-    if (rel & 0x80) {
-      rel |= ~0xff;
+    if (offset & 0x80) {
+      offset |= ~0xff;
     }
 
-    this.pc += rel;
+    this.pc += offset;
 
     this.cycles += +this.pageCrossed + 1;
   }
@@ -620,8 +617,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.o);
     this.flag(Flag.N, this.o & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private dex(): void {
@@ -657,8 +652,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.o);
     this.flag(Flag.N, this.o & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private inx(): void {
@@ -721,7 +714,7 @@ export class CPU {
   private lsr(): void {
     this.fetchOperand();
 
-    this.flag(Flag.C, this.o & 0x1);
+    this.flag(Flag.C, this.o & 0x01);
 
     this.o = this.o >> 1;
 
@@ -733,8 +726,6 @@ export class CPU {
     } else {
       this.write(this.addr, this.o);
     }
-
-    this.cycles += +this.pageCrossed;
   }
 
   private nop(): void {
@@ -788,8 +779,6 @@ export class CPU {
     } else {
       this.write(this.addr, this.o);
     }
-
-    this.cycles += +this.pageCrossed;
   }
 
   private ror(): void {
@@ -809,8 +798,6 @@ export class CPU {
     } else {
       this.write(this.addr, this.o);
     }
-
-    this.cycles += +this.pageCrossed;
   }
 
   private rti(): void {
