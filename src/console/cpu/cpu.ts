@@ -98,7 +98,7 @@ export class CPU {
 
   private pageCrossed: boolean = false;
 
-  private dmEnabled: boolean = true;
+  private dmEnabled: boolean = false;
 
   private irqScheduled: boolean = false;
 
@@ -221,8 +221,8 @@ export class CPU {
     this.nmiScheduled = true;
   }
 
-  disableDecimalMode(): void {
-    this.dmEnabled = false;
+  enableDecimalMode(): void {
+    this.dmEnabled = true;
   }
 
   onRead(cb: (addr: number, val: number) => void): void {

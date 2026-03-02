@@ -124,6 +124,8 @@ function setupTest(
   const bus = new TestBus();
   const cpu = new CPU(bus);
 
+  cpu.enableDecimalMode();
+
   let addr = startAddr;
 
   readBinFile(path.join(__dirname, `bin/${testFile}.bin`), (val) =>
@@ -213,8 +215,6 @@ function singleStepTest({ name, initial, final, cycles }: TestData): void {
   for (const [addr, val] of initial.ram) {
     bus.write(addr, val);
   }
-
-  cpu.disableDecimalMode();
 
   let nCycles = 1;
 
