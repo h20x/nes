@@ -1,1 +1,1 @@
-declare const DEV: boolean;
+declare var DEV: boolean;

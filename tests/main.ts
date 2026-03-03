@@ -1,3 +1,5 @@
+/// <reference path="../typings.d.ts" />
+
 import fs from 'fs';
 import path from 'path';
 import { Bus } from '../src/console/bus';
@@ -22,6 +24,8 @@ type TestData = {
   final: CPUState & { ram: Memory };
   cycles: [number, number, string];
 };
+
+global.DEV = true;
 
 const DEBUG = process.argv[2] === 'd';
 
