@@ -182,7 +182,7 @@ export class CPU {
         return 1;
       }
 
-      this.ecb?.(this);
+      DEV && this.ecb?.(this);
 
       this.ir = this.read();
       this.cycles = this.it[this.ir][2];
@@ -258,7 +258,8 @@ export class CPU {
   private read(addr?: number): number {
     addr = addr == null ? this.pc++ : addr & 0xffff;
     const val = OAMDMA === addr && !this.ignoreDMA ? 0 : this.bus.read(addr);
-    this.rcb?.(addr, val);
+
+    DEV && this.rcb?.(addr, val);
 
     return val;
   }
@@ -276,7 +277,8 @@ export class CPU {
   private write(addr: number, val: number): void {
     addr &= 0xffff;
     val &= 0xff;
-    this.wcb?.(addr, val);
+
+    DEV && this.wcb?.(addr, val);
 
     if (OAMDMA === addr && !this.ignoreDMA) {
       this.dmaScheduled = true;

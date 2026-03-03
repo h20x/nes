@@ -27,6 +27,7 @@ function getConfig(dev = false) {
       { out: 'app', in: 'src/app/app.ts' },
       { out: 'audio-processor', in: 'src/console/apu/audio-processor.js' },
     ],
+    define: { DEV: String(dev) },
     bundle: true,
     minify: !dev,
     outdir: 'dist',
