@@ -5,7 +5,8 @@ import path from 'path';
 
 const TASKS = new Map([
   ['default', build],
-  ['dev', serve],
+  ['dev', () => serve(true)],
+  ['serve', serve],
 ]);
 
 runTask();
@@ -44,9 +45,9 @@ function getConfig(dev = false) {
   };
 }
 
-async function serve() {
+async function serve(dev = false) {
   clean();
-  const ctx = await esbuild.context(getConfig(true));
+  const ctx = await esbuild.context(getConfig(dev));
   const { port } = await ctx.serve({
     servedir: 'dist',
     onRequest: ({ remoteAddress, method, path, status, timeInMS }) => {
