@@ -36,7 +36,7 @@ export class Sweep {
   }
 
   isEnabled(): boolean {
-    return Boolean(this.enabled && this.shift > 0);
+    return this.enabled !== 0 && this.shift > 0;
   }
 
   isMuted(): boolean {

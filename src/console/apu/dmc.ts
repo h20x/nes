@@ -121,7 +121,7 @@ export class DMC {
   }
 
   isIRQ(): boolean {
-    return Boolean(this.irq);
+    return this.irq !== 0;
   }
 
   hasRemainingBytes(): boolean {

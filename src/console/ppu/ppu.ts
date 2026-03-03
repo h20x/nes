@@ -131,7 +131,7 @@ export class PPU {
     } else if (PPURegister.Mask === reg) {
       const prev = this.renderingEnabled;
       this.registers[reg] = val;
-      this.renderingEnabled = Boolean(val & 0x18);
+      this.renderingEnabled = (val & 0x18) !== 0;
 
       if (this.renderingEnabled !== prev) {
         this.renderingToggleDelay = 4;

@@ -20,7 +20,7 @@ export function createMapper(buffer: ArrayBuffer): Mapper {
   const chrSize = calcChrSize(arr);
   const mirroring = arr[6] & 0x01 ? Mirroring.Vertical : Mirroring.Horizontal;
   const altNametableLayout = arr[6] & 0x08;
-  const trainer = Boolean(arr[6] & 0x04);
+  const trainer = (arr[6] & 0x04) !== 0;
   const trainerSize = trainer ? 512 : 0;
   const mapperNum = ((arr[6] & 0xf0) >> 4) | (arr[7] & 0xf0);
   const prgStart = headerSize + trainerSize;
