@@ -2,7 +2,7 @@ import { Bus } from '../bus';
 import { Mapper } from '../mapper';
 
 export class PPUBus implements Bus {
-  private palette: number[] = new Array(32).fill(0);
+  private palette: Uint8Array = new Uint8Array(32);
 
   constructor(private mapper: Mapper) {}
 

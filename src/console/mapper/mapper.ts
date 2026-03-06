@@ -7,19 +7,19 @@ export enum Mirroring {
 }
 
 export class Mapper {
-  private ram: number[] = new Array(0x8000 - 0x4020).fill(0);
+  private ram: Uint8Array = new Uint8Array(0x8000 - 0x4020);
 
-  private nametable0: number[] = new Array(1024).fill(0);
+  private nametable0: Uint8Array = new Uint8Array(1024);
 
-  private nametable1: number[] = new Array(1024).fill(0);
+  private nametable1: Uint8Array = new Uint8Array(1024);
 
-  private nametable2: number[] = new Array(1024).fill(0);
+  private nametable2: Uint8Array = new Uint8Array(1024);
 
-  private nametable3: number[] = new Array(1024).fill(0);
+  private nametable3: Uint8Array = new Uint8Array(1024);
 
-  protected prgBank: number[] = new Array(2).fill(0);
+  protected prgBank: Int32Array = new Int32Array(2);
 
-  protected chrBank: number[] = new Array(2).fill(0);
+  protected chrBank: Int32Array = new Int32Array(2);
 
   protected prgBankSize: number = 16384;
 
@@ -95,7 +95,7 @@ export class Mapper {
 
   scanline(): void {}
 
-  private getNametable(addr: number): number[] {
+  private getNametable(addr: number): Uint8Array {
     addr &= 0x0fff;
 
     if (Mirroring.Horizontal === this.mirroring) {

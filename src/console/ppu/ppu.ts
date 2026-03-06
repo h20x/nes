@@ -13,30 +13,6 @@ export enum PPURegister {
   VRAMData,
 }
 
-class ShiftRegister {
-  private lo: number = 0;
-
-  private hi: number = 0;
-
-  private offset: number = 15;
-
-  get(offset: number = 0): number {
-    offset = this.offset - (offset & 0x07);
-
-    return ((this.lo >> offset) & 0x01) | (((this.hi >> offset) & 0x01) << 1);
-  }
-
-  set(lo: number, hi: number): void {
-    this.offset = 15;
-    this.lo = (this.lo << 8) | (lo & 0xff);
-    this.hi = (this.hi << 8) | (hi & 0xff);
-  }
-
-  shift(): void {
-    --this.offset;
-  }
-}
-
 export class PPU {
   private cycle: number = 0;
 
@@ -52,19 +28,23 @@ export class PPU {
 
   private renderingToggleDelay: number = 0;
 
-  private registers: number[] = new Array(9).fill(0);
+  private registers: Uint8Array = new Uint8Array(9);
 
-  private oam: number[] = new Array(256).fill(0);
+  private oam: Uint8Array = new Uint8Array(256);
 
-  private store: number[] = new Array(4).fill(0);
+  private store: Uint8Array = new Uint8Array(3);
 
-  private curSprites: number[] = [];
+  private currSprites: Uint8Array = new Uint8Array(48);
 
-  private nextSprites: number[] = [];
+  private nextSprites: Uint8Array = new Uint8Array(48);
 
-  private tileShifter: ShiftRegister = new ShiftRegister();
+  private currSpritesLen: number = 0;
 
-  private attrShifter: ShiftRegister = new ShiftRegister();
+  private nextSpritesLen: number = 0;
+
+  private tileShifter: number = 0;
+
+  private attrShifter: number = 0;
 
   private v: number = 0;
 
@@ -202,8 +182,8 @@ export class PPU {
           this.drawPixel();
         }
 
-        this.tileShifter.shift();
-        this.attrShifter.shift();
+        this.tileShifter <<= 2;
+        this.attrShifter <<= 2;
       }
 
       if (65 === this.cycle && 261 !== this.scanline) {
@@ -288,21 +268,45 @@ export class PPU {
   }
 
   private reloadShifters(): void {
-    const attr = this.store[1];
+    const [attr, lo, hi] = this.store;
     const x = ((this.v - 1) & 0x03) >> 1;
     const y = ((this.v >> 5) & 0x03) >> 1;
     const a = attr >> ((y << 2) | (x << 1));
 
-    this.tileShifter.set(this.store[2], this.store[3]);
-    this.attrShifter.set(a & 0x01 ? 0xff : 0, a & 0x02 ? 0xff : 0);
+    this.tileShifter |=
+      ((hi & 0x80) << 8) |
+      ((lo & 0x80) << 7) |
+      ((hi & 0x40) << 7) |
+      ((lo & 0x40) << 6) |
+      ((hi & 0x20) << 6) |
+      ((lo & 0x20) << 5) |
+      ((hi & 0x10) << 5) |
+      ((lo & 0x10) << 4) |
+      ((hi & 0x08) << 4) |
+      ((lo & 0x08) << 3) |
+      ((hi & 0x04) << 3) |
+      ((lo & 0x04) << 2) |
+      ((hi & 0x02) << 2) |
+      ((lo & 0x02) << 1) |
+      ((hi & 0x01) << 1) |
+      ((lo & 0x01) << 0);
+
+    this.attrShifter |=
+      a & 0x01 && a & 0x02
+        ? 0xffff
+        : a & 0x01 && !(a & 0x02)
+        ? 0x5555
+        : !(a & 0x01) && a & 0x02
+        ? 0xaaaa
+        : 0;
   }
 
   private fetchBgTile(): void {
     // tile index
-    this.store[0] = this.bus.read(0x2000 | (this.v & 0x0fff));
+    const idx = this.bus.read(0x2000 | (this.v & 0x0fff));
 
     // tile attribute
-    this.store[1] = this.bus.read(
+    this.store[0] = this.bus.read(
       0x23c0 |
         (this.v & 0x0c00) |
         ((this.v >> 4) & 0x38) |
@@ -312,13 +316,13 @@ export class PPU {
     const addr = this.registers[PPURegister.Ctrl] & 0x10 ? 0x1000 : 0x0000;
 
     // tile low byte
-    this.store[2] = this.bus.read(
-      addr | (this.store[0] << 4) | ((this.v & 0x7000) >> 12)
+    this.store[1] = this.bus.read(
+      addr | (idx << 4) | ((this.v & 0x7000) >> 12)
     );
 
     // tile high byte
-    this.store[3] = this.bus.read(
-      addr | (this.store[0] << 4) | ((this.v & 0x7000) >> 12) | 0x08
+    this.store[2] = this.bus.read(
+      addr | (idx << 4) | ((this.v & 0x7000) >> 12) | 0x08
     );
   }
 
@@ -333,19 +337,21 @@ export class PPU {
       this.registers[PPURegister.Mask] & 0x10 &&
       (this.registers[PPURegister.Mask] & 0x04 || x > 7);
 
-    let paletteIndex = this.attrShifter.get(this.x);
-    let colorIndex = bgEnabled ? this.tileShifter.get(this.x) : 0;
+    let paletteIndex = (this.attrShifter >> (30 - (this.x << 1))) & 0x03;
+    let colorIndex = bgEnabled
+      ? (this.tileShifter >> (30 - (this.x << 1))) & 0x03
+      : 0;
 
-    for (let i = 0; sprEnabled && i < this.curSprites.length; i += 6) {
-      const xOffset = x - this.curSprites[i + 3];
+    for (let i = 0; sprEnabled && i < this.currSpritesLen; i += 6) {
+      const xOffset = x - this.currSprites[i + 3];
 
       if (xOffset < 0 || xOffset > 7) {
         continue;
       }
 
-      const lo = this.curSprites[i + 4];
-      const hi = this.curSprites[i + 5];
-      const hFlip = this.curSprites[i + 2] & 0x40;
+      const lo = this.currSprites[i + 4];
+      const hi = this.currSprites[i + 5];
+      const hFlip = this.currSprites[i + 2] & 0x40;
       const offset = hFlip ? xOffset : 0x07 ^ xOffset;
       const colIndex = ((lo >> offset) & 0x01) | (((hi >> offset) & 0x01) << 1);
 
@@ -358,16 +364,16 @@ export class PPU {
         0 === i &&
         0 !== colorIndex &&
         this.cycle < 256 &&
-        this.curSprites[0] === this.oam[0] &&
-        this.curSprites[3] === this.oam[3]
+        this.currSprites[0] === this.oam[0] &&
+        this.currSprites[3] === this.oam[3]
       ) {
         this.registers[PPURegister.Status] |= 0x40;
       }
 
-      const priority = this.curSprites[i + 2] & 0x20;
+      const priority = this.currSprites[i + 2] & 0x20;
 
       if (0 === colorIndex || (0 === priority && 0 !== colIndex)) {
-        paletteIndex = 0x04 | (this.curSprites[i + 2] & 0x03);
+        paletteIndex = 0x04 | (this.currSprites[i + 2] & 0x03);
         colorIndex = colIndex;
       }
 
@@ -413,8 +419,8 @@ export class PPU {
   }
 
   private evaluateSprites(): void {
-    this.nextSprites.length = 0;
     const height = this.registers[PPURegister.Ctrl] & 0x20 ? 16 : 8;
+    let l = 0;
 
     for (let i = 0; i < this.oam.length; i += 4) {
       if (
@@ -425,27 +431,27 @@ export class PPU {
       }
 
       // sprite overflow
-      if (this.nextSprites.length >= 48) {
+      if (l === 48) {
         this.registers[PPURegister.Status] |= 0x20;
 
         break;
       }
 
-      this.nextSprites.push(
-        this.oam[i],
-        this.oam[i + 1],
-        this.oam[i + 2],
-        this.oam[i + 3],
-        0,
-        0
-      );
+      this.nextSprites[l] = this.oam[i];
+      this.nextSprites[l + 1] = this.oam[i + 1];
+      this.nextSprites[l + 2] = this.oam[i + 2];
+      this.nextSprites[l + 3] = this.oam[i + 3];
+
+      l += 6;
     }
+
+    this.nextSpritesLen = l;
   }
 
   private fetchSprites(): void {
     // 8x16
     if (this.registers[PPURegister.Ctrl] & 0x20) {
-      for (let i = 0; i < this.nextSprites.length; i += 6) {
+      for (let i = 0; i < this.nextSpritesLen; i += 6) {
         const vFlip = this.nextSprites[i + 2] & 0x80;
         const yOffset = this.scanline - this.nextSprites[i];
         let offset = yOffset % 8;
@@ -471,7 +477,7 @@ export class PPU {
     else {
       const addr = this.registers[PPURegister.Ctrl] & 0x08 ? 0x1000 : 0x0000;
 
-      for (let i = 0; i < this.nextSprites.length; i += 6) {
+      for (let i = 0; i < this.nextSpritesLen; i += 6) {
         const vFlip = this.nextSprites[i + 2] & 0x80;
         const yOffset = this.scanline - this.nextSprites[i];
         const offset = vFlip ? 0x07 ^ yOffset : yOffset;
@@ -485,6 +491,10 @@ export class PPU {
       }
     }
 
-    this.curSprites = this.nextSprites.slice();
+    const t = this.currSprites;
+    this.currSprites = this.nextSprites;
+    this.nextSprites = t;
+    this.currSpritesLen = this.nextSpritesLen;
+    this.nextSpritesLen = 0;
   }
 }

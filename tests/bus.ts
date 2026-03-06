@@ -1,7 +1,7 @@
 import { Bus } from '../src/console/bus';
 
 export class TestBus implements Bus {
-  private ram: number[] = new Array(65536).fill(0);
+  private ram: Uint8Array = new Uint8Array(65536);
 
   read(addr: number): number {
     return this.ram[addr];

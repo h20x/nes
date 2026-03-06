@@ -5,7 +5,7 @@ import { Mapper } from '../mapper';
 import { PPU } from '../ppu';
 
 export class CPUBus implements Bus {
-  private ram: number[] = new Array(2048).fill(0);
+  private ram: Uint8Array = new Uint8Array(2048);
 
   constructor(
     private ppu: PPU,

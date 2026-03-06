@@ -1,9 +1,9 @@
 import { Mapper, Mirroring } from './mapper';
 
 export class Mapper4 extends Mapper {
-  protected prgBank: number[] = new Array(4).fill(0);
+  protected prgBank: Int32Array = new Int32Array(4);
 
-  protected chrBank: number[] = new Array(8).fill(0);
+  protected chrBank: Int32Array = new Int32Array(8);
 
   private bankRegister: number = 0;
 

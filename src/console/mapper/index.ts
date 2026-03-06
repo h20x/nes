@@ -26,7 +26,9 @@ export function createMapper(buffer: ArrayBuffer): Mapper {
   const prgStart = headerSize + trainerSize;
   const prgEnd = prgStart + prgSize;
   const prg = arr.slice(prgStart, prgEnd);
-  const chr = chrSize ? arr.slice(prgEnd, prgEnd + chrSize) : new Array(8192);
+  const chr = chrSize
+    ? arr.slice(prgEnd, prgEnd + chrSize)
+    : new Uint8Array(8192);
 
   switch (mapperNum) {
     case 0:
