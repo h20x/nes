@@ -100,7 +100,11 @@ export class CPU {
 
   private dmEnabled: boolean = false;
 
+  private irqSignal: boolean = false;
+
   private irqScheduled: boolean = false;
+
+  private nmiSignal: boolean = false;
 
   private nmiScheduled: boolean = false;
 
@@ -172,7 +176,7 @@ export class CPU {
         return 1;
       }
 
-      if (this.dmaCycles) {
+      if (this.dmaCycles > 0) {
         if (this.dmaCycles < 512 && this.dmaCycles & 1) {
           this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
         }
@@ -184,10 +188,19 @@ export class CPU {
 
       DEV && this.ecb?.(this);
 
+      this.nmiScheduled = this.nmiSignal;
+
+      if (!this.flag(Flag.I) && this.irqSignal) {
+        this.irqScheduled = true;
+      }
+
       this.ir = this.read();
       this.cycles = this.it[this.ir][2];
       this.it[this.ir][1].call(this);
       this.it[this.ir][0].call(this);
+
+      this.nmiSignal = false;
+      this.irqSignal = false;
 
       this.flag(Flag.U, 1);
     }
@@ -204,7 +217,7 @@ export class CPU {
         this.initNMI();
       } else if (this.irqScheduled) {
         this.irqScheduled = false;
-        !this.flag(Flag.I) && this.initIRQ();
+        this.initIRQ();
       }
 
       return 0;
@@ -214,11 +227,11 @@ export class CPU {
   }
 
   irq(): void {
-    this.irqScheduled = true;
+    this.irqSignal = true;
   }
 
   nmi(): void {
-    this.nmiScheduled = true;
+    this.nmiSignal = true;
   }
 
   enableDecimalMode(): void {
@@ -805,6 +818,14 @@ export class CPU {
   private rti(): void {
     this.p = this.pop() & ~Flag.B;
     this.pc = this.popWord();
+
+    if (this.irqScheduled && this.flag(Flag.I)) {
+      this.irqScheduled = false;
+    }
+
+    if (this.irqSignal && !this.flag(Flag.I)) {
+      this.irqScheduled = true;
+    }
   }
 
   private rts(): void {

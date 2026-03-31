@@ -119,12 +119,20 @@ export class APU {
       this.square2.setEnabled(val & 0x02);
       this.triangle.setEnabled(val & 0x04);
       this.noise.setEnabled(val & 0x08);
+      this.dmc.clearIRQ();
       val & 0x10 ? this.dmc.start() : this.dmc.stop();
       this.dmc.clearIRQ();
     } else if (APURegister.FrameCounter === reg) {
       this.frameCounter.setMode(val & 0x80);
       this.frameCounter.setInterruptInhibitFlag(val & 0x40);
       this.frameCounter.reset();
+
+      if (val & 0x80) {
+        this.square1.tick(2);
+        this.square2.tick(2);
+        this.triangle.tick(2);
+        this.noise.tick(2);
+      }
     }
   }
 

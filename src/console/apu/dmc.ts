@@ -84,6 +84,7 @@ export class DMC {
   register(reg: number, val: number): void {
     if (0 === reg) {
       this.irqEnabled = val & 0x80;
+      this.irq = this.irqEnabled && this.irq;
       this.loop = val & 0x40;
       this.period = DMC.LT[val & 0x0f];
     } else if (1 === reg) {
@@ -109,6 +110,10 @@ export class DMC {
 
     if (this.buffer < 0) {
       this.fetchNextByte();
+    }
+
+    if (this.bytesCounter === 0) {
+      this.irq = this.irqEnabled;
     }
   }
 
