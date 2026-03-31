@@ -168,20 +168,20 @@ export class CPU {
   tick(): number {
     ++this.cyclesTotal;
 
+    if (this.dmaCycles > 0) {
+      if (this.dmaCycles < 512 && this.dmaCycles & 1) {
+        this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
+      }
+
+      --this.dmaCycles;
+
+      return 1;
+    }
+
     if (this.cycles === 0) {
       if (this.dmaScheduled) {
         this.dmaScheduled = false;
         this.dmaCycles = this.cyclesTotal & 1 ? 513 : 512;
-
-        return 1;
-      }
-
-      if (this.dmaCycles > 0) {
-        if (this.dmaCycles < 512 && this.dmaCycles & 1) {
-          this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
-        }
-
-        --this.dmaCycles;
 
         return 1;
       }

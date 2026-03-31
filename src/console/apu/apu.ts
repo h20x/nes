@@ -7,15 +7,15 @@ import { Pulse } from './pulse';
 import { Triangle } from './triangle';
 
 export enum APURegister {
-  Square10,
-  Square11,
-  Square12,
-  Square13,
+  Pulse10,
+  Pulse11,
+  Pulse12,
+  Pulse13,
 
-  Square20,
-  Square21,
-  Square22,
-  Square23,
+  Pulse20,
+  Pulse21,
+  Pulse22,
+  Pulse23,
 
   Triangle0,
   Triangle1,
@@ -41,9 +41,9 @@ export class APU {
 
   private frameCounter: FrameCounter = new FrameCounter();
 
-  private square1: Pulse = new Pulse(true);
+  private pulse1: Pulse = new Pulse(true);
 
-  private square2: Pulse = new Pulse();
+  private pulse2: Pulse = new Pulse();
 
   private triangle: Triangle = new Triangle();
 
@@ -62,8 +62,8 @@ export class APU {
 
     if (this.cycles % 2 === 0) {
       const q = this.frameCounter.tick();
-      this.square1.tick(q);
-      this.square2.tick(q);
+      this.pulse1.tick(q);
+      this.pulse2.tick(q);
       this.triangle.tick(q);
       this.noise.tick(q);
       this.dmc.tick();
@@ -73,8 +73,8 @@ export class APU {
 
     if (this.cycles % 41 === 0) {
       this.mixer.mix(
-        this.square1.output(),
-        this.square2.output(),
+        this.pulse1.output(),
+        this.pulse2.output(),
         this.triangle.output(),
         this.noise.output(),
         this.dmc.output()
@@ -88,8 +88,8 @@ export class APU {
     if (val == null) {
       if (APURegister.Status === reg) {
         const status =
-          (this.square1.isEnabled() ? 0x01 : 0) |
-          (this.square2.isEnabled() ? 0x02 : 0) |
+          (this.pulse1.isEnabled() ? 0x01 : 0) |
+          (this.pulse2.isEnabled() ? 0x02 : 0) |
           (this.triangle.isEnabled() ? 0x04 : 0) |
           (this.noise.isEnabled() ? 0x08 : 0) |
           (this.dmc.hasRemainingBytes() ? 0x10 : 0) |
@@ -104,10 +104,10 @@ export class APU {
       return 0;
     }
 
-    if (reg >= APURegister.Square10 && reg <= APURegister.Square13) {
-      this.square1.register(reg % 4, val);
-    } else if (reg >= APURegister.Square20 && reg <= APURegister.Square23) {
-      this.square2.register(reg % 4, val);
+    if (reg >= APURegister.Pulse10 && reg <= APURegister.Pulse13) {
+      this.pulse1.register(reg % 4, val);
+    } else if (reg >= APURegister.Pulse20 && reg <= APURegister.Pulse23) {
+      this.pulse2.register(reg % 4, val);
     } else if (reg >= APURegister.Triangle0 && reg <= APURegister.Triangle3) {
       this.triangle.register(reg % 4, val);
     } else if (reg >= APURegister.Noise0 && reg <= APURegister.Noise3) {
@@ -115,21 +115,20 @@ export class APU {
     } else if (reg >= APURegister.DMC0 && reg <= APURegister.DMC3) {
       this.dmc.register(reg % 4, val);
     } else if (APURegister.Status === reg) {
-      this.square1.setEnabled(val & 0x01);
-      this.square2.setEnabled(val & 0x02);
+      this.pulse1.setEnabled(val & 0x01);
+      this.pulse2.setEnabled(val & 0x02);
       this.triangle.setEnabled(val & 0x04);
       this.noise.setEnabled(val & 0x08);
       this.dmc.clearIRQ();
       val & 0x10 ? this.dmc.start() : this.dmc.stop();
-      this.dmc.clearIRQ();
     } else if (APURegister.FrameCounter === reg) {
       this.frameCounter.setMode(val & 0x80);
       this.frameCounter.setInterruptInhibitFlag(val & 0x40);
       this.frameCounter.reset();
 
       if (val & 0x80) {
-        this.square1.tick(2);
-        this.square2.tick(2);
+        this.pulse1.tick(2);
+        this.pulse2.tick(2);
         this.triangle.tick(2);
         this.noise.tick(2);
       }
@@ -138,8 +137,8 @@ export class APU {
 
   reset(): void {
     this.cycles = 0;
-    this.square1.setEnabled(0);
-    this.square2.setEnabled(0);
+    this.pulse1.setEnabled(0);
+    this.pulse2.setEnabled(0);
     this.triangle.setEnabled(0);
     this.noise.setEnabled(0);
     this.dmc.stop();

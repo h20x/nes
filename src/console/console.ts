@@ -84,12 +84,11 @@ export class Console {
       let done = 0;
 
       while (!done) {
-        done |= this.ppu.tick();
         this.ppu.isNMI() && this.cpu.nmi();
-        this.mapper.isIRQ() && this.cpu.irq();
-        this.apu.isIRQ() && this.cpu.irq();
+        (this.mapper.isIRQ() || this.apu.isIRQ()) && this.cpu.irq();
         this.cpu.tick();
         this.apu.tick();
+        done |= this.ppu.tick();
         done |= this.ppu.tick();
         done |= this.ppu.tick();
       }

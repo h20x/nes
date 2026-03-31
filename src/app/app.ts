@@ -9,7 +9,7 @@ const btnReset = document.querySelector('.btn-reset')!;
 const screen = document.querySelector('.screen') as HTMLCanvasElement;
 
 fileInput.addEventListener('change', handleFileSelection);
-btnReset.addEventListener('click', () => play());
+btnReset.addEventListener('click', () => play(gameData));
 
 function handleFileSelection(e: Event) {
   const file = (e.target as HTMLInputElement).files![0];
@@ -25,7 +25,7 @@ function handleFileSelection(e: Event) {
   reader.readAsArrayBuffer(file);
 }
 
-function play(data: ArrayBuffer = gameData) {
+function play(data: ArrayBuffer) {
   if (!data) {
     return;
   }

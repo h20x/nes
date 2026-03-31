@@ -1,24 +1,33 @@
+enum Frame {
+  Q1 = 3729,
+  Q2 = 11186,
+  H = 7457,
+  F1 = 14916,
+  F2 = 18640,
+}
+
 export class FrameCounter {
+  private maxValue: number = Frame.F1;
+
   private value: number = 0;
 
   private mode: number = 0;
-
-  private maxValue: number = 14914;
 
   private irq: boolean = false;
 
   private irqEnabled: boolean = false;
 
   tick(): number {
-    this.value = (this.value + 1) % (this.maxValue + 1);
+    this.value += 1;
     let q = 0;
 
     if (this.maxValue === this.value) {
       q = 4;
+      this.value = 0;
       this.irq = this.irqEnabled && !this.mode;
-    } else if (7456 === this.value) {
+    } else if (Frame.H === this.value) {
       q = 2;
-    } else if (3728 === this.value || 11185 === this.value) {
+    } else if (Frame.Q1 === this.value || Frame.Q2 === this.value) {
       q = 1;
     }
 
@@ -39,7 +48,7 @@ export class FrameCounter {
 
   setMode(v: number): void {
     this.mode = v;
-    this.maxValue = v ? 18640 : 14914;
+    this.maxValue = v ? Frame.F2 : Frame.F1;
   }
 
   setInterruptInhibitFlag(v: number): void {
