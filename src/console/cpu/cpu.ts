@@ -1,4 +1,4 @@
-import { Bus } from '../bus';
+import { ICPUBus } from '../bus';
 
 export const CPU_CLOCK_RATE = 1789773;
 
@@ -397,7 +397,7 @@ export class CPU {
   ];
 
   constructor(
-    private bus: Bus,
+    private bus: ICPUBus,
     state: Partial<{
       a: number;
       x: number;
@@ -460,10 +460,7 @@ export class CPU {
 
     if (this.dmaScheduled) {
       this.dmaScheduled = false;
-
-      for (let i = 0; i < 256; ++i) {
-        this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
-      }
+      this.bus.copyOAM(this.dmaAddr);
     } else {
       this.it[this.ir][0].call(this);
     }

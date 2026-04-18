@@ -1,6 +1,6 @@
-import { Bus } from '../src/console/bus';
+import { ICPUBus } from '../src/console/bus';
 
-export class TestBus implements Bus {
+export class TestBus implements ICPUBus {
   private ram: Uint8Array = new Uint8Array(65536);
 
   read(addr: number): number {
@@ -10,4 +10,6 @@ export class TestBus implements Bus {
   write(addr: number, val: number): void {
     this.ram[addr] = val;
   }
+
+  copyOAM(addr: number): void {}
 }

@@ -34,7 +34,7 @@ export class CanvasScreen implements Screen {
   }
 
   setPixel(x: number, y: number, color: number): void {
-    this.dataView.setUint32((y * WIDTH + x) * 4, (color << 8) | 0xff);
+    this.dataView.setUint32((y * WIDTH + x) * 4, color);
   }
 
   update(): void {

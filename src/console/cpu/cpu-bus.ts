@@ -1,10 +1,10 @@
 import { APU } from '../apu';
-import { Bus } from '../bus';
+import { ICPUBus } from '../bus';
 import { Controller } from '../controller';
 import { Mapper } from '../mapper';
 import { PPU } from '../ppu';
 
-export class CPUBus implements Bus {
+export class CPUBus implements ICPUBus {
   private ram: Uint8Array = new Uint8Array(2048);
 
   constructor(
@@ -62,6 +62,15 @@ export class CPUBus implements Bus {
     } else if (addr >= 0x4018 && addr <= 0x401f) {
     } else {
       throw new Error(`Unmapped address 0x${addr.toString(16)}`);
+    }
+  }
+
+  copyOAM(addr: number): void {
+    const source: Uint8Array =
+      addr >= 0x0000 && addr <= 0x1fff ? this.ram : (this.mapper as any).ram;
+
+    for (let i = 0; i < 256; ++i) {
+      (this.ppu as any).oam[i] = source[addr + i];
     }
   }
 }
