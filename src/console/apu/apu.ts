@@ -60,16 +60,17 @@ export class APU {
   tick(): void {
     ++this.cycles;
 
+    let q = 0;
+
     if (this.cycles % 2 === 0) {
-      const q = this.frameCounter.tick();
+      q = this.frameCounter.tick();
       this.pulse1.tick(q);
       this.pulse2.tick(q);
-      this.triangle.tick(q);
       this.noise.tick(q);
       this.dmc.tick();
-    } else {
-      this.triangle.tick();
     }
+
+    this.triangle.tick(q);
 
     if (this.cycles % 41 === 0) {
       this.mixer.mix(

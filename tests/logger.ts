@@ -27,7 +27,7 @@ export class Logger {
 
   private i: number = 0;
 
-  constructor(cpu: CPU, private size: number = 1024) {
+  constructor(private cpu: CPU, private size: number = 1024) {
     this.log = new Array(size);
 
     cpu.onRead((addr, byte) => this.addLine(`r ${addr}W ${byte}B`));
@@ -38,6 +38,9 @@ export class Logger {
   }
 
   writeFile(fname: string = 'cpu'): void {
+    const { pc, s, a, x, y, p } = this.cpu;
+    this.addLine(`pc ${pc}W | s ${s}B | a ${a}B | x ${x}B | y ${y}B | ${p}F`);
+
     fname = fname.trim().replace(/\s+/g, '-') + '.log';
 
     try {

@@ -84,13 +84,27 @@ export class Console {
       let done = 0;
 
       while (!done) {
-        this.ppu.isNMI() && this.cpu.nmi();
-        (this.mapper.isIRQ() || this.apu.isIRQ()) && this.cpu.irq();
-        this.cpu.tick();
+        let cycles = this.cpu.execStart() - 1;
+
+        while (cycles--) {
+          this.apu.tick();
+          done |= this.ppu.tick();
+          done |= this.ppu.tick();
+          done |= this.ppu.tick();
+        }
+
         this.apu.tick();
         done |= this.ppu.tick();
+
+        this.ppu.isNMI() && this.cpu.nmi();
+        (this.mapper.isIRQ() || this.apu.isIRQ()) && this.cpu.irq();
+
         done |= this.ppu.tick();
         done |= this.ppu.tick();
+
+        this.cpu.execEnd();
+
+        this.ppu.isNMI() && this.cpu.nmi();
       }
 
       this.rafId = requestAnimationFrame(loop);

@@ -20,7 +20,7 @@ export class Triangle {
 
   private outputUnit: OutputUnit = new OutputUnit();
 
-  tick(q: number = 0): void {
+  tick(q: number): void {
     q > 0 && this.linearCounter.tick();
     q > 1 && this.lengthCounter.tick();
 

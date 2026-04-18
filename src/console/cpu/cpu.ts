@@ -13,7 +13,7 @@ enum Flag {
   N = 1 << 7,
 }
 
-type Instruction = [() => void, () => void, number];
+type Instruction = [() => void, () => number];
 
 const OAMDATA = 0x2004;
 const OAMDMA = 0x4014;
@@ -88,11 +88,7 @@ export class CPU {
   // operand address
   private addr: number = 0;
 
-  private cycles: number = 0;
-
   private cyclesTotal: number = 0;
-
-  private dmaCycles: number = 0;
 
   private dmaAddr: number = 0;
 
@@ -116,25 +112,288 @@ export class CPU {
 
   private ecb: ((cpu: CPU) => void) | null = null;
 
-  // prettier-ignore
   // instruction table
   private it: Instruction[] = [
-    [this.brk, this.imp, 7], [this.ora, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.zpg, 3], [this.asl, this.zpg, 5], [this.nop, this.imp, 2], [this.php, this.imp, 3], [this.ora, this.imm, 2], [this.asl, this.acc, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.abs, 4], [this.asl, this.abs, 6], [this.nop, this.imp, 2],
-    [this.bpl, this.rel, 2], [this.ora, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.zpx, 4], [this.asl, this.zpx, 6], [this.nop, this.imp, 2], [this.clc, this.imp, 2], [this.ora, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ora, this.abx, 4], [this.asl, this.abx, 7], [this.nop, this.imp, 2],
-    [this.jsr, this.abs, 6], [this.and, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.bit, this.zpg, 3], [this.and, this.zpg, 3], [this.rol, this.zpg, 5], [this.nop, this.imp, 2], [this.plp, this.imp, 4], [this.and, this.imm, 2], [this.rol, this.acc, 2], [this.nop, this.imp, 2], [this.bit, this.abs, 4], [this.and, this.abs, 4], [this.rol, this.abs, 6], [this.nop, this.imp, 2],
-    [this.bmi, this.rel, 2], [this.and, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.and, this.zpx, 4], [this.rol, this.zpx, 6], [this.nop, this.imp, 2], [this.sec, this.imp, 2], [this.and, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.and, this.abx, 4], [this.rol, this.abx, 7], [this.nop, this.imp, 2],
-    [this.rti, this.imp, 6], [this.eor, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.zpg, 3], [this.lsr, this.zpg, 5], [this.nop, this.imp, 2], [this.pha, this.imp, 3], [this.eor, this.imm, 2], [this.lsr, this.acc, 2], [this.nop, this.imp, 2], [this.jmp, this.abs, 3], [this.eor, this.abs, 4], [this.lsr, this.abs, 6], [this.nop, this.imp, 2],
-    [this.bvc, this.rel, 2], [this.eor, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.zpx, 4], [this.lsr, this.zpx, 6], [this.nop, this.imp, 2], [this.cli, this.imp, 2], [this.eor, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.eor, this.abx, 4], [this.lsr, this.abx, 7], [this.nop, this.imp, 2],
-    [this.rts, this.imp, 6], [this.adc, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.zpg, 3], [this.ror, this.zpg, 5], [this.nop, this.imp, 2], [this.pla, this.imp, 4], [this.adc, this.imm, 2], [this.ror, this.acc, 2], [this.nop, this.imp, 2], [this.jmp, this.ind, 5], [this.adc, this.abs, 4], [this.ror, this.abs, 6], [this.nop, this.imp, 2],
-    [this.bvs, this.rel, 2], [this.adc, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.zpx, 4], [this.ror, this.zpx, 6], [this.nop, this.imp, 2], [this.sei, this.imp, 2], [this.adc, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.adc, this.abx, 4], [this.ror, this.abx, 7], [this.nop, this.imp, 2],
-    [this.nop, this.imp, 2], [this.sta, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.zpg, 3], [this.sta, this.zpg, 3], [this.stx, this.zpg, 3], [this.nop, this.imp, 2], [this.dey, this.imp, 2], [this.nop, this.imp, 2], [this.txa, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.abs, 4], [this.sta, this.abs, 4], [this.stx, this.abs, 4], [this.nop, this.imp, 2],
-    [this.bcc, this.rel, 2], [this.sta, this.iiy, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sty, this.zpx, 4], [this.sta, this.zpx, 4], [this.stx, this.zpy, 4], [this.nop, this.imp, 2], [this.tya, this.imp, 2], [this.sta, this.aby, 5], [this.txs, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sta, this.abx, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2],
-    [this.ldy, this.imm, 2], [this.lda, this.iix, 6], [this.ldx, this.imm, 2], [this.nop, this.imp, 2], [this.ldy, this.zpg, 3], [this.lda, this.zpg, 3], [this.ldx, this.zpg, 3], [this.nop, this.imp, 2], [this.tay, this.imp, 2], [this.lda, this.imm, 2], [this.tax, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.abs, 4], [this.lda, this.abs, 4], [this.ldx, this.abs, 4], [this.nop, this.imp, 2],
-    [this.bcs, this.rel, 2], [this.lda, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.zpx, 4], [this.lda, this.zpx, 4], [this.ldx, this.zpy, 4], [this.nop, this.imp, 2], [this.clv, this.imp, 2], [this.lda, this.aby, 4], [this.tsx, this.imp, 2], [this.nop, this.imp, 2], [this.ldy, this.abx, 4], [this.lda, this.abx, 4], [this.ldx, this.aby, 4], [this.nop, this.imp, 2],
-    [this.cpy, this.imm, 2], [this.cmp, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpy, this.zpg, 3], [this.cmp, this.zpg, 3], [this.dec, this.zpg, 5], [this.nop, this.imp, 2], [this.iny, this.imp, 2], [this.cmp, this.imm, 2], [this.dex, this.imp, 2], [this.nop, this.imp, 2], [this.cpy, this.abs, 4], [this.cmp, this.abs, 4], [this.dec, this.abs, 6], [this.nop, this.imp, 2],
-    [this.bne, this.rel, 2], [this.cmp, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cmp, this.zpx, 4], [this.dec, this.zpx, 6], [this.nop, this.imp, 2], [this.cld, this.imp, 2], [this.cmp, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cmp, this.abx, 4], [this.dec, this.abx, 7], [this.nop, this.imp, 2],
-    [this.cpx, this.imm, 2], [this.sbc, this.iix, 6], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpx, this.zpg, 3], [this.sbc, this.zpg, 3], [this.inc, this.zpg, 5], [this.nop, this.imp, 2], [this.inx, this.imp, 2], [this.sbc, this.imm, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.cpx, this.abs, 4], [this.sbc, this.abs, 4], [this.inc, this.abs, 6], [this.nop, this.imp, 2],
-    [this.beq, this.rel, 2], [this.sbc, this.iiy, 5], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sbc, this.zpx, 4], [this.inc, this.zpx, 6], [this.nop, this.imp, 2], [this.sed, this.imp, 2], [this.sbc, this.aby, 4], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.nop, this.imp, 2], [this.sbc, this.abx, 4], [this.inc, this.abx, 7], [this.nop, this.imp, 2],
+    [this.brk, () => (this.imp(), 7)],
+    [this.ora, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ora, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.asl, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.php, () => (this.imp(), 3)],
+    [this.ora, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.asl, () => (this.acc(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ora, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.asl, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bpl,
+      () => (this.rel(), 2 + (!this.flag(Flag.N) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.ora, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ora, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.asl, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.clc, () => (this.imp(), 2)],
+    [this.ora, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ora, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.asl, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.jsr, () => (this.abs(), 6)],
+    [this.and, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.bit, () => (this.zpg(), 3)],
+    [this.and, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.rol, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.plp, () => (this.imp(), 4)],
+    [this.and, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.rol, () => (this.acc(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.bit, () => (this.abs(), 4)],
+    [this.and, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.rol, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bmi,
+      () => (this.rel(), 2 + (this.flag(Flag.N) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.and, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.and, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.rol, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sec, () => (this.imp(), 2)],
+    [this.and, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.and, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.rol, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.rti, () => (this.imp(), 6)],
+    [this.eor, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.eor, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.lsr, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.pha, () => (this.imp(), 3)],
+    [this.eor, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.lsr, () => (this.acc(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.jmp, () => (this.abs(), 3)],
+    [this.eor, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.lsr, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bvc,
+      () => (this.rel(), 2 + (!this.flag(Flag.V) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.eor, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.eor, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.lsr, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cli, () => (this.imp(), 2)],
+    [this.eor, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.eor, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.lsr, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.rts, () => (this.imp(), 6)],
+    [this.adc, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.adc, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.ror, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.pla, () => (this.imp(), 4)],
+    [this.adc, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.ror, () => (this.acc(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.jmp, () => (this.ind(), 5)],
+    [this.adc, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.ror, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bvs,
+      () => (this.rel(), 2 + (this.flag(Flag.V) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.adc, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.adc, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.ror, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sei, () => (this.imp(), 2)],
+    [this.adc, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.adc, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.ror, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sta, () => (this.iix(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sty, () => (this.zpg(), 3)],
+    [this.sta, () => (this.zpg(), 3)],
+    [this.stx, () => (this.zpg(), 3)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.dey, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.txa, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sty, () => (this.abs(), 4)],
+    [this.sta, () => (this.abs(), 4)],
+    [this.stx, () => (this.abs(), 4)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bcc,
+      () => (this.rel(), 2 + (!this.flag(Flag.C) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.sta, () => (this.iiy(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sty, () => (this.zpx(), 4)],
+    [this.sta, () => (this.zpx(), 4)],
+    [this.stx, () => (this.zpy(), 4)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.tya, () => (this.imp(), 2)],
+    [this.sta, () => (this.aby(), 5)],
+    [this.txs, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sta, () => (this.abx(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ldy, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.lda, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.ldx, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ldy, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.lda, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.ldx, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.tay, () => (this.imp(), 2)],
+    [this.lda, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.tax, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ldy, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.lda, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.ldx, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bcs,
+      () => (this.rel(), 2 + (this.flag(Flag.C) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.lda, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ldy, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.lda, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.ldx, () => (this.zpy(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.clv, () => (this.imp(), 2)],
+    [this.lda, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.tsx, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.ldy, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.lda, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.ldx, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpy, () => (this.imm(), 2)],
+    [this.cmp, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpy, () => (this.zpg(), 3)],
+    [this.cmp, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.dec, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.iny, () => (this.imp(), 2)],
+    [this.cmp, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.dex, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpy, () => (this.abs(), 4)],
+    [this.cmp, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.dec, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.bne,
+      () => (this.rel(), 2 + (!this.flag(Flag.Z) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.cmp, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cmp, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.dec, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cld, () => (this.imp(), 2)],
+    [this.cmp, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cmp, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.dec, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpx, () => (this.imm(), 2)],
+    [this.sbc, () => (this.iix(), 6 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpx, () => (this.zpg(), 3)],
+    [this.sbc, () => (this.zpg(), 3 + +this.pageCrossed)],
+    [this.inc, () => (this.zpg(), 5)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.inx, () => (this.imp(), 2)],
+    [this.sbc, () => (this.imm(), 2 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.cpx, () => (this.abs(), 4)],
+    [this.sbc, () => (this.abs(), 4 + +this.pageCrossed)],
+    [this.inc, () => (this.abs(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [
+      this.beq,
+      () => (this.rel(), 2 + (this.flag(Flag.Z) ? +this.pageCrossed + 1 : 0)),
+    ],
+    [this.sbc, () => (this.iiy(), 5 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sbc, () => (this.zpx(), 4 + +this.pageCrossed)],
+    [this.inc, () => (this.zpx(), 6)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sed, () => (this.imp(), 2)],
+    [this.sbc, () => (this.aby(), 4 + +this.pageCrossed)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.nop, () => (this.imp(), 2)],
+    [this.sbc, () => (this.abx(), 4 + +this.pageCrossed)],
+    [this.inc, () => (this.abx(), 7)],
+    [this.nop, () => (this.imp(), 2)],
   ];
 
   constructor(
@@ -159,71 +418,60 @@ export class CPU {
   }
 
   reset(): void {
-    this.a = this.x = this.y = this.cycles = this.cyclesTotal = 0;
+    this.a = this.x = this.y = this.cyclesTotal = 0;
     this.s = 0xfd;
     this.p = 0x24;
     this.pc = this.readWord(0xfffc);
   }
 
-  tick(): number {
-    ++this.cyclesTotal;
+  execStart(): number {
+    let cycles = 0;
 
-    if (this.dmaCycles > 0) {
-      if (this.dmaCycles < 512 && this.dmaCycles & 1) {
-        this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
-      }
-
-      --this.dmaCycles;
-
-      return 1;
-    }
-
-    if (this.cycles === 0) {
-      if (this.dmaScheduled) {
-        this.dmaScheduled = false;
-        this.dmaCycles = this.cyclesTotal & 1 ? 513 : 512;
-
-        return 1;
+    if (this.dmaScheduled) {
+      cycles = this.cyclesTotal & 1 ? 514 : 513;
+    } else {
+      if (this.nmiScheduled) {
+        this.nmiScheduled = false;
+        this.initNMI();
+        cycles = 8;
+      } else if (this.irqScheduled) {
+        this.irqScheduled = false;
+        this.initIRQ();
+        cycles = 7;
       }
 
       DEV && this.ecb?.(this);
 
-      this.nmiScheduled = this.nmiSignal;
-
-      if (!this.flag(Flag.I) && this.irqSignal) {
-        this.irqScheduled = true;
-      }
-
       this.ir = this.read();
-      this.cycles = this.it[this.ir][2];
-      this.it[this.ir][1].call(this);
+      cycles += this.it[this.ir][1]();
+    }
+
+    this.cyclesTotal += cycles;
+
+    return cycles;
+  }
+
+  execEnd(): void {
+    this.nmiScheduled = this.nmiSignal;
+
+    if (!this.flag(Flag.I) && this.irqSignal) {
+      this.irqScheduled = true;
+    }
+
+    if (this.dmaScheduled) {
+      this.dmaScheduled = false;
+
+      for (let i = 0; i < 256; ++i) {
+        this.bus.write(OAMDATA, this.bus.read(this.dmaAddr++));
+      }
+    } else {
       this.it[this.ir][0].call(this);
-
-      this.nmiSignal = false;
-      this.irqSignal = false;
-
-      this.flag(Flag.U, 1);
     }
 
-    --this.cycles;
+    this.nmiSignal = false;
+    this.irqSignal = false;
 
-    if (this.cycles === 0) {
-      if (this.ir < 0) {
-        return 1;
-      }
-
-      if (this.nmiScheduled) {
-        this.nmiScheduled = false;
-        this.initNMI();
-      } else if (this.irqScheduled) {
-        this.irqScheduled = false;
-        this.initIRQ();
-      }
-
-      return 0;
-    }
-
-    return this.cycles;
+    this.flag(Flag.U, 1);
   }
 
   irq(): void {
@@ -256,7 +504,6 @@ export class CPU {
     this.flag(Flag.I, 1);
     this.pc = this.readWord(0xfffe);
     this.ir = -1;
-    this.cycles = 7;
   }
 
   private initNMI(): void {
@@ -265,7 +512,6 @@ export class CPU {
     this.flag(Flag.I, 1);
     this.pc = this.readWord(0xfffa);
     this.ir = -1;
-    this.cycles = 8;
   }
 
   private read(addr?: number): number {
@@ -453,8 +699,6 @@ export class CPU {
     this.flag(Flag.N, sum & 0x80);
 
     this.a = sum;
-
-    this.cycles += +this.pageCrossed;
   }
 
   private adcd(): void {
@@ -473,8 +717,6 @@ export class CPU {
     }
 
     this.a = sum;
-
-    this.cycles += +this.pageCrossed;
   }
 
   private and(): void {
@@ -484,8 +726,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.a);
     this.flag(Flag.N, this.a & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private asl(): void {
@@ -557,8 +797,6 @@ export class CPU {
     }
 
     this.pc += offset;
-
-    this.cycles += +this.pageCrossed + 1;
   }
 
   private brk(): void {
@@ -604,8 +842,6 @@ export class CPU {
     this.flag(Flag.C, this.a >= this.o);
     this.flag(Flag.Z, this.a === this.o);
     this.flag(Flag.N, (this.a - this.o) & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private cpx(): void {
@@ -655,8 +891,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.a);
     this.flag(Flag.N, this.a & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private inc(): void {
@@ -700,8 +934,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.a);
     this.flag(Flag.N, this.a & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private ldx(): void {
@@ -711,8 +943,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.x);
     this.flag(Flag.N, this.x & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private ldy(): void {
@@ -722,8 +952,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.y);
     this.flag(Flag.N, this.y & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private lsr(): void {
@@ -754,8 +982,6 @@ export class CPU {
 
     this.flag(Flag.Z, !this.a);
     this.flag(Flag.N, this.a & 0x80);
-
-    this.cycles += +this.pageCrossed;
   }
 
   private pha(): void {
@@ -862,8 +1088,6 @@ export class CPU {
     }
 
     this.a = sub;
-
-    this.cycles += +this.pageCrossed;
   }
 
   private sec(): void {

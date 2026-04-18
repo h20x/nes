@@ -22,7 +22,7 @@ type TestData = {
   name: string;
   initial: CPUState & { ram: Memory };
   final: CPUState & { ram: Memory };
-  cycles: [number, number, string];
+  cycles: [number, number, string][];
 };
 
 global.DEV = true;
@@ -47,7 +47,8 @@ function functionalTest(): void {
   while (true) {
     const { pc } = cpu;
 
-    while (cpu.tick());
+    cpu.execStart();
+    cpu.execEnd();
 
     if (cpu.pc === pc) {
       break;
@@ -69,7 +70,8 @@ function decimalTest(): void {
   ]);
 
   while (true) {
-    while (cpu.tick());
+    cpu.execStart();
+    cpu.execEnd();
 
     if (cpu.pc === 0x025b) {
       break;
@@ -94,7 +96,8 @@ function interruptTest(): void {
   while (true) {
     const { pc } = cpu;
 
-    while (cpu.tick());
+    cpu.execStart();
+    cpu.execEnd();
 
     const port = bus.read(0xbffc);
 
@@ -220,11 +223,8 @@ function singleStepTest({ name, initial, final, cycles }: TestData): void {
     bus.write(addr, val);
   }
 
-  let nCycles = 1;
-
-  while (cpu.tick()) {
-    ++nCycles;
-  }
+  const nCycles = cpu.execStart();
+  cpu.execEnd();
 
   if (
     !compareCPUState(final, cpu) ||

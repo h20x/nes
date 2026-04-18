@@ -14,11 +14,15 @@ export enum PPURegister {
 }
 
 export class PPU {
+  private static RENDERING_TOGGLE_DELAY = 4;
+
   private cycle: number = 0;
 
   private scanline: number = 0;
 
   private readBuffer: number = 0;
+
+  private cyclesTotal: number = 0;
 
   private nmi: boolean = false;
 
@@ -26,7 +30,11 @@ export class PPU {
 
   private renderingEnabled: boolean = false;
 
-  private renderingToggleDelay: number = 0;
+  private renderingChangeCycle: number = 0;
+
+  private statusRegisterReadCycle: number = 0;
+
+  private vblFlagSetCycle: number = 0;
 
   private registers: Uint8Array = new Uint8Array(9);
 
@@ -57,9 +65,29 @@ export class PPU {
   constructor(private bus: PPUBus, private screen: Screen) {}
 
   reset(): void {
-    this.cycle = this.scanline = this.t = this.x = this.readBuffer = 0;
-    this.registers[PPURegister.Ctrl] = this.registers[PPURegister.Mask] = 0;
-    this.nmi = this.oddFrame = this.w = false;
+    this.cycle =
+      this.scanline =
+      this.readBuffer =
+      this.cyclesTotal =
+      this.renderingChangeCycle =
+      this.statusRegisterReadCycle =
+      this.vblFlagSetCycle =
+      this.currSpritesLen =
+      this.nextSpritesLen =
+      this.tileShifter =
+      this.attrShifter =
+      this.v =
+      this.t =
+      this.x =
+        0;
+
+    this.nmi = this.oddFrame = this.renderingEnabled = this.w = false;
+
+    this.registers = new Uint8Array(9);
+    this.oam = new Uint8Array(256);
+    this.store = new Uint8Array(3);
+    this.currSprites = new Uint8Array(48);
+    this.nextSprites = new Uint8Array(48);
   }
 
   isNMI(): boolean {
@@ -75,8 +103,16 @@ export class PPU {
     if (val == null) {
       if (PPURegister.Status === reg) {
         const status = this.registers[reg];
+
+        this.statusRegisterReadCycle = this.cyclesTotal;
         this.registers[reg] &= 0x7f;
         this.w = false;
+
+        const diff = this.cyclesTotal - this.vblFlagSetCycle;
+
+        if (diff === 0 || diff === 1) {
+          this.nmi = false;
+        }
 
         return status;
       } else if (PPURegister.OAMData === reg) {
@@ -100,22 +136,28 @@ export class PPU {
       // enabling NMI when VBlank flag is set
       if (
         (this.registers[reg] ^ val) & 0x80 &&
-        val & this.registers[PPURegister.Status] & 0x80
+        val & this.registers[PPURegister.Status] & 0x80 &&
+        this.cycle !== 0
       ) {
         this.nmi = true;
+      }
+
+      if (!(val & 0x80)) {
+        this.nmi = false;
       }
 
       this.t &= ~0x0c00;
       this.t |= (val & 0x03) << 10;
       this.registers[reg] = val;
     } else if (PPURegister.Mask === reg) {
-      const prev = this.renderingEnabled;
-      this.registers[reg] = val;
-      this.renderingEnabled = (val & 0x18) !== 0;
+      const re = !!(val & 0x18);
 
-      if (this.renderingEnabled !== prev) {
-        this.renderingToggleDelay = 4;
+      if (this.renderingEnabled !== re) {
+        this.renderingChangeCycle = this.cyclesTotal;
       }
+
+      this.registers[reg] = val;
+      this.renderingEnabled = re;
     } else if (PPURegister.OAMAddr === reg) {
       this.registers[reg] = val;
     } else if (PPURegister.OAMData === reg) {
@@ -154,13 +196,12 @@ export class PPU {
   }
 
   tick(): number {
-    if (this.renderingToggleDelay > 0) {
-      --this.renderingToggleDelay;
-    }
+    ++this.cyclesTotal;
 
+    const diff = this.cyclesTotal - this.renderingChangeCycle;
     const renEnabled =
-      (this.renderingEnabled && this.renderingToggleDelay === 0) ||
-      (!this.renderingEnabled && this.renderingToggleDelay > 0);
+      (this.renderingEnabled && diff >= PPU.RENDERING_TOGGLE_DELAY) ||
+      (!this.renderingEnabled && diff < PPU.RENDERING_TOGGLE_DELAY);
 
     if (renEnabled && (239 >= this.scanline || 261 === this.scanline)) {
       if (
@@ -229,8 +270,13 @@ export class PPU {
       );
     }
 
-    // set VBlank flag
-    if (241 === this.scanline && 1 === this.cycle) {
+    // set VBlank flag if $2002 wasn't read one PPU cycle ago
+    if (
+      241 === this.scanline &&
+      0 === this.cycle &&
+      this.cyclesTotal - this.statusRegisterReadCycle !== 1
+    ) {
+      this.vblFlagSetCycle = this.cyclesTotal;
       this.registers[PPURegister.Status] |= 0x80;
 
       if (this.registers[PPURegister.Ctrl] & 0x80) {
@@ -239,7 +285,7 @@ export class PPU {
     }
 
     // clear sprite overflow, sprite 0 hit, VBlank
-    if (261 === this.scanline && 1 === this.cycle) {
+    if (261 === this.scanline && 0 === this.cycle) {
       this.registers[PPURegister.Status] &= 0x1f;
       this.nmi = false;
     }
