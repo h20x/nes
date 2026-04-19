@@ -138,13 +138,13 @@ export class APU {
 
   reset(): void {
     this.cycles = 0;
-    this.pulse1.setEnabled(0);
-    this.pulse2.setEnabled(0);
-    this.triangle.setEnabled(0);
-    this.noise.setEnabled(0);
-    this.dmc.stop();
-    this.dmc.clearIRQ();
-    this.frameCounter.clearIRQ();
+    this.frameCounter = new FrameCounter();
+    this.pulse1 = new Pulse(true);
+    this.pulse2 = new Pulse();
+    this.triangle = new Triangle();
+    this.noise = new Noise();
+    this.dmc = new DMC();
+    this.mixer.reset();
   }
 
   isIRQ(): boolean {

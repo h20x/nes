@@ -39,20 +39,15 @@ export class Console {
   async play(mapper: Mapper): Promise<void> {
     this.destroy();
     await this.init(mapper);
-    this.reset();
     this.startGameLoop();
-  }
-
-  private reset(): void {
-    this.cpu?.reset();
-    this.ppu?.reset();
-    this.apu?.reset();
   }
 
   private async init(mapper: Mapper): Promise<void> {
     if (!this.apu) {
       this.apu = new APU();
       await this.apu.init();
+    } else {
+      this.apu.reset();
     }
 
     this.mapper = mapper;
@@ -69,6 +64,7 @@ export class Console {
         this.controller2
       )
     );
+    this.cpu.reset();
   }
 
   private destroy(): void {

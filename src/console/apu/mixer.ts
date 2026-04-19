@@ -29,4 +29,9 @@ export class Mixer {
       this.samples = new Float32Array(this.len);
     }
   }
+
+  reset(): void {
+    this.idx = 0;
+    this.samples = new Float32Array(this.len);
+  }
 }

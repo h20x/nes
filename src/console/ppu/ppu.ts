@@ -64,32 +64,6 @@ export class PPU {
 
   constructor(private bus: PPUBus, private screen: Screen) {}
 
-  reset(): void {
-    this.cycle =
-      this.scanline =
-      this.readBuffer =
-      this.cyclesTotal =
-      this.renderingChangeCycle =
-      this.statusRegisterReadCycle =
-      this.vblFlagSetCycle =
-      this.currSpritesLen =
-      this.nextSpritesLen =
-      this.tileShifter =
-      this.attrShifter =
-      this.v =
-      this.t =
-      this.x =
-        0;
-
-    this.nmi = this.oddFrame = this.renderingEnabled = this.w = false;
-
-    this.registers = new Uint8Array(9);
-    this.oam = new Uint8Array(256);
-    this.store = new Uint8Array(3);
-    this.currSprites = new Uint8Array(48);
-    this.nextSprites = new Uint8Array(48);
-  }
-
   isNMI(): boolean {
     const f = this.nmi;
     this.nmi = false;
