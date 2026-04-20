@@ -23,11 +23,11 @@ export class DMC {
 
   private shifter: number = 0x8000;
 
-  private baseAddr: number = 0;
+  private baseAddr: number = 0xc000;
 
   private curAddr: number = 0;
 
-  private bytes: number = 0;
+  private length: number = 1;
 
   private bytesCounter: number = 0;
 
@@ -92,7 +92,7 @@ export class DMC {
     } else if (2 === reg) {
       this.baseAddr = 0xc000 | (val << 6);
     } else if (3 === reg) {
-      this.bytes = (val << 4) | 0x01;
+      this.length = (val << 4) | 0x01;
     }
   }
 
@@ -106,7 +106,7 @@ export class DMC {
     }
 
     this.curAddr = this.baseAddr;
-    this.bytesCounter = this.bytes;
+    this.bytesCounter = this.length;
 
     if (this.buffer < 0) {
       this.fetchNextByte();
