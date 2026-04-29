@@ -76,10 +76,18 @@ export class Console {
   }
 
   private startGameLoop(): void {
-    const loop = () => {
+    const frame = 1000 / 60;
+    let time = 0;
+    let prev = 0;
+
+    const loop = (now: number) => {
+      time += now - prev;
+      const skip = time < frame;
+      prev = now;
+      time %= frame;
       let done = 0;
 
-      while (!done) {
+      while (!done && !skip) {
         let cycles = this.cpu.execStart() - 1;
 
         while (cycles--) {
@@ -106,7 +114,7 @@ export class Console {
       this.rafId = requestAnimationFrame(loop);
     };
 
-    loop();
+    loop(0);
   }
 
   private stopGameLoop(): void {
