@@ -6,20 +6,24 @@ class Queue {
     this.v = 0;
   }
 
-  push(v) {
-    if (this.l < this.a.length) {
-      this.a[(this.i + this.l++) % this.a.length] = v;
+  fill(input) {
+    for (const v of input) {
+      if (this.l < this.a.length) {
+        this.a[(this.i + this.l++) % this.a.length] = v;
+      }
     }
   }
 
-  pop() {
-    if (this.l > 0) {
-      --this.l;
-      this.v = this.a[this.i++];
-      this.i %= this.a.length;
-    }
+  drain(output) {
+    for (let i = 0; i < output.length; ++i) {
+      if (this.l > 0) {
+        --this.l;
+        this.v = this.a[this.i++];
+        this.i %= this.a.length;
+      }
 
-    return this.v;
+      output[i] = this.v;
+    }
   }
 }
 
@@ -28,22 +32,11 @@ class AudioProcessor extends AudioWorkletProcessor {
     super();
 
     this.samples = new Queue(2048);
-
-    this.port.onmessage = ({ data }) => {
-      for (const d of data) {
-        this.samples.push(d);
-      }
-    };
+    this.port.onmessage = ({ data }) => this.samples.fill(data);
   }
 
   process(inputs, outputs) {
-    const channel = outputs[0][0];
-
-    for (let i = 0; i < channel.length; ++i) {
-      channel[i] = this.samples.pop();
-    }
-
-    return true;
+    return this.samples.drain(outputs[0][0]), true;
   }
 }
 

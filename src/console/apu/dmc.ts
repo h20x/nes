@@ -33,7 +33,11 @@ export class DMC {
 
   private buffer: number = -1;
 
-  tick(): void {
+  tick(even: boolean = false): void {
+    if (!even) {
+      return;
+    }
+
     --this.periodCounter;
 
     if (this.periodCounter > 0) {

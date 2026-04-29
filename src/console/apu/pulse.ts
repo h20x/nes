@@ -31,10 +31,14 @@ export class Pulse {
     this.sweep = new Sweep(ch1);
   }
 
-  tick(q: number): void {
+  tick(q: number, even: boolean = false): void {
     q > 0 && this.envelope.tick();
     q > 1 && this.counter.tick();
     q > 1 && this.sweep.tick();
+
+    if (!even) {
+      return;
+    }
 
     if (this.periodCounter === 0) {
       this.outputUnit.set(

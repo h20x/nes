@@ -1,6 +1,16 @@
 import { CPU_CLOCK_RATE } from '../cpu';
 
 export class Mixer {
+  private static PULSE_LT = Array.from(
+    { length: 31 },
+    (_, i) => 95.52 / (8128 / i + 100)
+  );
+
+  private static TND_LT = Array.from(
+    { length: 203 },
+    (_, i) => 163.67 / (24329 / i + 100)
+  );
+
   private len: number = 768;
 
   private idx: number = 0;
@@ -19,9 +29,9 @@ export class Mixer {
     this.node.connect(this.ctx.destination);
   }
 
-  mix(s1: number, s2: number, t: number, n: number, d: number): void {
+  mix(p1: number, p2: number, t: number, n: number, d: number): void {
     this.samples[this.idx++] =
-      0.00752 * (s1 + s2) + 0.00851 * t + 0.00494 * n + 0.00335 * d;
+      Mixer.PULSE_LT[p1 + p2] + Mixer.TND_LT[3 * t + 2 * n + d];
 
     if (this.idx === this.len) {
       this.idx = 0;

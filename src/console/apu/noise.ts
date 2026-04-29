@@ -21,9 +21,13 @@ export class Noise {
 
   private outputUnit: OutputUnit = new OutputUnit();
 
-  tick(q: number): void {
+  tick(q: number, even: boolean = false): void {
     q > 0 && this.envelope.tick();
     q > 1 && this.counter.tick();
+
+    if (!even) {
+      return;
+    }
 
     if (this.periodCounter === 0) {
       this.outputUnit.set(

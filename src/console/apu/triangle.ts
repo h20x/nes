@@ -24,15 +24,16 @@ export class Triangle {
     q > 0 && this.linearCounter.tick();
     q > 1 && this.lengthCounter.tick();
 
-    if (this.periodCounter === 0) {
-      this.outputUnit.set(
-        this.lengthCounter.isMuted() ||
-          this.linearCounter.isMuted() ||
-          this.period < 2
-          ? 0
-          : Triangle.SEQ[this.sequencer]
-      );
+    if (
+      this.lengthCounter.isMuted() ||
+      this.linearCounter.isMuted() ||
+      this.period < 2
+    ) {
+      return;
+    }
 
+    if (this.periodCounter === 0) {
+      this.outputUnit.set(Triangle.SEQ[this.sequencer]);
       this.periodCounter = this.period;
       this.sequencer = (this.sequencer + 1) % 32;
     } else {
