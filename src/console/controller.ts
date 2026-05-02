@@ -9,34 +9,10 @@ export enum Button {
   Right = 1 << 7,
 }
 
-export type ControllerKeys = Record<string, Button>;
-
 export class Controller {
   private state: number = 0;
 
   private offset: number = 0;
-
-  private keys!: ControllerKeys;
-
-  constructor() {
-    this.keyDownHandler = this.keyDownHandler.bind(this);
-    this.keyUpHandler = this.keyUpHandler.bind(this);
-  }
-
-  bindKeys(keys: ControllerKeys): void {
-    if (this.keys == null) {
-      document.addEventListener('keydown', this.keyDownHandler);
-      document.addEventListener('keyup', this.keyUpHandler);
-    }
-
-    this.keys = keys;
-  }
-
-  unbindKeys(): void {
-    this.keys = null!;
-    document.removeEventListener('keydown', this.keyDownHandler);
-    document.removeEventListener('keyup', this.keyUpHandler);
-  }
 
   read(): number {
     const val = ((this.state >> this.offset++) & 0x01) | 0x40;
@@ -45,17 +21,15 @@ export class Controller {
     return val;
   }
 
-  private keyDownHandler(e: KeyboardEvent): void {
-    if (this.keys[e.code] != null) {
-      this.state |= this.keys[e.code];
-      e.preventDefault();
-    }
+  pressButton(btn: Button): void {
+    this.state |= btn;
   }
 
-  private keyUpHandler(e: KeyboardEvent): void {
-    if (this.keys[e.code] != null) {
-      this.state &= ~this.keys[e.code];
-      e.preventDefault();
-    }
+  releaseButton(btn: Button): void {
+    this.state &= ~btn;
+  }
+
+  reset(): void {
+    this.state = this.offset = 0;
   }
 }

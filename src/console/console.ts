@@ -1,20 +1,9 @@
 import { APU } from './apu';
-import { Button, Controller, ControllerKeys } from './controller';
+import { Controller } from './controller';
 import { CPU, CPUBus } from './cpu';
 import { Mapper } from './mapper';
 import { PPU, PPUBus } from './ppu';
 import { Screen } from './screen';
-
-const DEFAULT_KEYS: ControllerKeys = {
-  KeyZ: Button.A,
-  KeyX: Button.B,
-  Tab: Button.Select,
-  Enter: Button.Start,
-  ArrowUp: Button.Up,
-  ArrowDown: Button.Down,
-  ArrowLeft: Button.Left,
-  ArrowRight: Button.Right,
-};
 
 export class Console {
   private cpu!: CPU;
@@ -25,15 +14,12 @@ export class Console {
 
   private mapper!: Mapper;
 
-  private controller1!: Controller;
-
-  private controller2!: Controller;
-
   private rafId: number = 0;
 
   constructor(
     private screen: Screen,
-    private keys: ControllerKeys = DEFAULT_KEYS
+    private controller1: Controller,
+    private controller2: Controller
   ) {}
 
   async play(mapper: Mapper): Promise<void> {
@@ -46,15 +32,10 @@ export class Console {
     if (!this.apu) {
       this.apu = new APU();
       await this.apu.init();
-    } else {
-      this.apu.reset();
     }
 
     this.mapper = mapper;
     this.ppu = new PPU(new PPUBus(this.mapper), this.screen);
-    this.controller1 = new Controller();
-    this.controller2 = new Controller();
-    this.controller1.bindKeys(this.keys);
     this.cpu = new CPU(
       new CPUBus(
         this.ppu,
@@ -70,9 +51,10 @@ export class Console {
   private destroy(): void {
     this.stopGameLoop();
     this.screen?.clear();
-    this.controller1?.unbindKeys();
+    this.apu?.reset();
+    this.controller1?.reset();
+    this.controller2?.reset();
     this.cpu = this.ppu = this.mapper = null!;
-    this.controller1 = this.controller2 = null!;
   }
 
   private startGameLoop(): void {

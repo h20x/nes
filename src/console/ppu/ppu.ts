@@ -40,7 +40,7 @@ export class PPU {
 
   private oam: Uint8Array = new Uint8Array(256);
 
-  private store: Uint8Array = new Uint8Array(3);
+  private tile: Uint8Array = new Uint8Array(3);
 
   private currSprites: Uint8Array = new Uint8Array(48);
 
@@ -288,7 +288,7 @@ export class PPU {
   }
 
   private reloadShifters(): void {
-    const [attr, lo, hi] = this.store;
+    const [attr, lo, hi] = this.tile;
     const x = ((this.v - 1) & 0x03) >> 1;
     const y = ((this.v >> 5) & 0x03) >> 1;
     const a = attr >> ((y << 2) | (x << 1));
@@ -326,7 +326,7 @@ export class PPU {
     const idx = this.bus.read(0x2000 | (this.v & 0x0fff));
 
     // tile attribute
-    this.store[0] = this.bus.read(
+    this.tile[0] = this.bus.read(
       0x23c0 |
         (this.v & 0x0c00) |
         ((this.v >> 4) & 0x38) |
@@ -336,12 +336,10 @@ export class PPU {
     const addr = this.registers[PPURegister.Ctrl] & 0x10 ? 0x1000 : 0x0000;
 
     // tile low byte
-    this.store[1] = this.bus.read(
-      addr | (idx << 4) | ((this.v & 0x7000) >> 12)
-    );
+    this.tile[1] = this.bus.read(addr | (idx << 4) | ((this.v & 0x7000) >> 12));
 
     // tile high byte
-    this.store[2] = this.bus.read(
+    this.tile[2] = this.bus.read(
       addr | (idx << 4) | ((this.v & 0x7000) >> 12) | 0x08
     );
   }
@@ -475,7 +473,7 @@ export class PPU {
         const vFlip = this.nextSprites[i + 2] & 0x80;
         const yOffset = this.scanline - this.nextSprites[i];
         let offset = yOffset % 8;
-        let tileNum = (yOffset / 8) | 0;
+        let tileNum = yOffset >> 3;
 
         if (vFlip) {
           offset ^= 0x07;

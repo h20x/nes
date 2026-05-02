@@ -1,15 +1,35 @@
-import { CanvasScreen, Console, createMapper } from '../console';
+import {
+  Button,
+  CanvasScreen,
+  Console,
+  Controller,
+  createMapper,
+} from '../console';
 import './app.css';
+
+const KEYS = new Map([
+  ['KeyZ', Button.A],
+  ['KeyX', Button.B],
+  ['Tab', Button.Select],
+  ['Enter', Button.Start],
+  ['ArrowUp', Button.Up],
+  ['ArrowDown', Button.Down],
+  ['ArrowLeft', Button.Left],
+  ['ArrowRight', Button.Right],
+]);
 
 let nes: Console;
 let gameData: ArrayBuffer;
-
+const controller1 = new Controller();
+const controller2 = new Controller();
 const fileInput = document.querySelector('.file')!;
 const btnReset = document.querySelector('.btn-reset')!;
-const screen = document.querySelector('.screen') as HTMLCanvasElement;
+const canvas = document.querySelector('.screen') as HTMLCanvasElement;
 
+btnReset.addEventListener('click', reset);
 fileInput.addEventListener('change', handleFileSelection);
-btnReset.addEventListener('click', () => play(gameData));
+document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('keyup', handleKeyUp);
 
 function handleFileSelection(e: Event) {
   const file = (e.target as HTMLInputElement).files![0];
@@ -25,13 +45,27 @@ function handleFileSelection(e: Event) {
   reader.readAsArrayBuffer(file);
 }
 
+function handleKeyDown(e: KeyboardEvent): void {
+  if (KEYS.has(e.code)) {
+    e.preventDefault();
+    controller1.pressButton(KEYS.get(e.code)!);
+  }
+}
+
+function handleKeyUp(e: KeyboardEvent): void {
+  if (KEYS.has(e.code)) {
+    e.preventDefault();
+    controller1.releaseButton(KEYS.get(e.code)!);
+  }
+}
+
 function play(data: ArrayBuffer) {
   if (!data) {
     return;
   }
 
   if (!nes) {
-    nes = new Console(new CanvasScreen(screen));
+    nes = new Console(new CanvasScreen(canvas), controller1, controller2);
   }
 
   try {
@@ -40,6 +74,10 @@ function play(data: ArrayBuffer) {
   } catch (err) {
     notifyErr(err as Error);
   }
+}
+
+function reset() {
+  play(gameData);
 }
 
 function notifyErr(err: string | Error) {

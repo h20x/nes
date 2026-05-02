@@ -32,9 +32,10 @@ export class Logger {
 
     cpu.onRead((addr, byte) => this.addLine(`r ${addr}W ${byte}B`));
     cpu.onWrite((addr, byte) => this.addLine(`w ${addr}W ${byte}B`));
-    cpu.onExec(({ pc, s, a, x, y, p }) =>
-      this.addLine(`pc ${pc}W | s ${s}B | a ${a}B | x ${x}B | y ${y}B | ${p}F`)
-    );
+    cpu.onExec(() => {
+      const { pc, s, a, x, y, p } = this.cpu;
+      this.addLine(`pc ${pc}W | s ${s}B | a ${a}B | x ${x}B | y ${y}B | ${p}F`);
+    });
   }
 
   writeFile(fname: string = 'cpu'): void {
