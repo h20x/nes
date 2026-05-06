@@ -10,6 +10,7 @@ body {
 .screen {
   display: block;
   background: #000;
+  width: 768px;
 }
 
 .controls {
