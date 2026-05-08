@@ -7,10 +7,12 @@ import {
 } from '../console';
 import './app.css';
 
+declare var darkMode: boolean;
+
 const KEYS = new Map([
   ['KeyZ', Button.A],
   ['KeyX', Button.B],
-  ['Tab', Button.Select],
+  ['Space', Button.Select],
   ['Enter', Button.Start],
   ['ArrowUp', Button.Up],
   ['ArrowDown', Button.Down],
@@ -20,15 +22,22 @@ const KEYS = new Map([
 
 let nes: Console;
 let gameData: ArrayBuffer;
+let controlsOpen = false;
 const controller1 = new Controller();
 const controller2 = new Controller();
-const fileInput = document.querySelector('.file')!;
-const btnReset = document.querySelector('.btn-reset')!;
-const canvas = document.querySelector('.screen') as HTMLCanvasElement;
+const canvasEl = document.querySelector('.screen') as HTMLCanvasElement;
+const controlsEl = document.querySelector('.controls')!;
 
-btnReset.addEventListener('click', reset);
-fileInput.addEventListener('change', handleFileSelection);
+document.querySelectorAll('.file').forEach((el) => {
+  el.addEventListener('change', handleFileSelection);
+});
+document.querySelector('.ctrl-reset')!.addEventListener('click', reset);
+document.querySelector('.ctrl-keys')!.addEventListener('click', openControls);
+document.querySelector('.ctrl-mode')!.addEventListener('click', switchMode);
 document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('keydown', (e) => {
+  e.code === 'KeyR' && reset();
+});
 document.addEventListener('keyup', handleKeyUp);
 
 function handleFileSelection(e: Event) {
@@ -65,7 +74,8 @@ function play(data: ArrayBuffer) {
   }
 
   if (!nes) {
-    nes = new Console(new CanvasScreen(canvas), controller1, controller2);
+    nes = new Console(new CanvasScreen(canvasEl), controller1, controller2);
+    hideIntro();
   }
 
   try {
@@ -78,6 +88,49 @@ function play(data: ArrayBuffer) {
 
 function reset() {
   play(gameData);
+}
+
+function switchMode() {
+  darkMode = !darkMode;
+  localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  document.documentElement.classList.toggle('dark', darkMode);
+}
+
+function hideIntro() {
+  document.querySelector('.intro')!.classList.add('hidden');
+}
+
+function openControls() {
+  if (controlsOpen) {
+    return;
+  }
+
+  const close = () => {
+    controlsOpen = false;
+    controlsEl.classList.add('hidden');
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('click', onClick);
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.code == 'Escape') {
+      close();
+    }
+  };
+
+  const onClick = (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest('.controls-inner')) {
+      close();
+    }
+  };
+
+  controlsOpen = true;
+  controlsEl.classList.remove('hidden');
+
+  setTimeout(() => {
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('click', onClick);
+  }, 0);
 }
 
 function notifyErr(err: string | Error) {
