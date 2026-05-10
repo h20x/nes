@@ -684,10 +684,8 @@ export class CPU {
 
   // INSTRUCTIONS
 
-  private adc(operandFetched: boolean = false): void {
-    if (!operandFetched) {
-      this.fetchOperand();
-    }
+  private adc(): void {
+    this.fetchOperand();
 
     if (this.flag(SF.D) && this.dmEnabled) {
       return this.adcd();
@@ -1079,7 +1077,15 @@ export class CPU {
     // = a + ~m + 1 - 1 + c = a + ~m + c
     // so addition can be used
     this.o = ~this.o;
-    this.adc(true);
+
+    const sum = this.a + this.o + this.flag(SF.C);
+
+    this.flag(SF.C, sum > 0xff);
+    this.flag(SF.Z, !(sum & 0xff));
+    this.flag(SF.V, ~(this.a ^ this.o) & (this.a ^ sum) & 0x80);
+    this.flag(SF.N, sum & 0x80);
+
+    this.a = sum;
   }
 
   private sbcd(): void {

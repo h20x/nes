@@ -68,19 +68,19 @@ function handleKeyUp(e: KeyboardEvent): void {
   }
 }
 
-function play(data: ArrayBuffer) {
+async function play(data: ArrayBuffer) {
   if (!data) {
     return;
   }
 
   if (!nes) {
     nes = new Console(new CanvasScreen(canvasEl), controller1, controller2);
-    hideIntro();
   }
 
   try {
-    nes.play(createMapper(data));
+    await nes.play(createMapper(data));
     gameData = data;
+    hideIntro();
   } catch (err) {
     notifyErr(err as Error);
   }

@@ -36,7 +36,7 @@ export class PPU {
 
   private vblFlagSetCycle: number = 0;
 
-  private registers: Uint8Array = new Uint8Array(9);
+  private registers: Uint8Array = new Uint8Array(8);
 
   private oam: Uint8Array = new Uint8Array(256);
 
@@ -135,9 +135,7 @@ export class PPU {
     } else if (PPURegister.OAMAddr === reg) {
       this.registers[reg] = val;
     } else if (PPURegister.OAMData === reg) {
-      const addr = this.registers[PPURegister.OAMAddr];
-      this.oam[addr] = val;
-      this.registers[PPURegister.OAMAddr] = (addr + 1) & 0xff;
+      this.oam[this.registers[PPURegister.OAMAddr]++] = val;
     } else if (PPURegister.Scroll === reg) {
       if (this.w) {
         this.t &= ~0x73e0;

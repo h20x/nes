@@ -7,7 +7,7 @@ export class Noise {
     2, 4, 8, 16, 32, 48, 64, 80, 101, 127, 190, 254, 381, 508, 1017, 2034,
   ];
 
-  private mode: number = 0;
+  private shift: number = 6;
 
   private period: number = 0;
 
@@ -36,7 +36,8 @@ export class Noise {
           : this.envelope.getVolume()
       );
 
-      this.clockShifter();
+      const b = (this.shifter >> this.shift) & 0x01;
+      this.shifter = (this.shifter >> 1) | (((this.shifter & 0x01) ^ b) << 14);
       this.periodCounter = this.period;
     } else {
       --this.periodCounter;
@@ -50,7 +51,7 @@ export class Noise {
       this.envelope.setConstVolumeMode(val & 0x10);
       this.envelope.setVolume(val & 0x0f);
     } else if (2 === reg) {
-      this.mode = val & 0x80;
+      this.shift = val & 0x80 ? 6 : 1;
       this.period = Noise.LT[val & 0x0f];
     } else if (3 === reg) {
       this.counter.setValue((val >> 3) & 0x1f);
@@ -68,10 +69,5 @@ export class Noise {
 
   setEnabled(v: number): void {
     this.counter.setEnabled(v);
-  }
-
-  private clockShifter(): void {
-    const b = (this.mode ? this.shifter >> 6 : this.shifter >> 1) & 0x01;
-    this.shifter = (this.shifter >> 1) | (((this.shifter & 0x01) ^ b) << 14);
   }
 }
