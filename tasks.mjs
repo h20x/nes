@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 const TASKS = new Map([
-  ['default', build],
+  ['dist', dist],
   ['dev', () => serve(true)],
   ['serve', serve],
 ]);
@@ -12,7 +12,7 @@ const TASKS = new Map([
 runTask();
 
 function runTask() {
-  const taskName = process.argv[2] || 'default';
+  const taskName = process.argv[2] || 'dist';
 
   if (TASKS.has(taskName)) {
     TASKS.get(taskName)();
@@ -22,6 +22,8 @@ function runTask() {
 }
 
 function getConfig(dev = false) {
+  const dir = dev ? 'build' : 'dist';
+
   return {
     entryPoints: [
       { out: 'app', in: 'src/app/app.ts' },
@@ -30,13 +32,13 @@ function getConfig(dev = false) {
     define: { DEV: String(dev) },
     bundle: true,
     minify: !dev,
-    outdir: 'dist',
+    outdir: dir,
     plugins: [
       copy({
         assets: [
           {
             from: ['./src/app/index.html'],
-            to: ['./dist'],
+            to: [dir],
           },
         ],
         resolveFrom: 'cwd',
@@ -47,10 +49,11 @@ function getConfig(dev = false) {
 }
 
 async function serve(dev = false) {
-  clean();
-  const ctx = await esbuild.context(getConfig(dev));
+  const conf = getConfig(dev);
+  clean(conf.outdir);
+  const ctx = await esbuild.context(conf);
   const { port } = await ctx.serve({
-    servedir: 'dist',
+    servedir: conf.outdir,
     onRequest: ({ remoteAddress, method, path, status, timeInMS }) => {
       console.log(
         `${remoteAddress} - "${method} ${path}" ${status} [${timeInMS}ms]`
@@ -61,13 +64,13 @@ async function serve(dev = false) {
   console.log(`Serve 127.0.0.1:${port}\n`);
 }
 
-async function build() {
+async function dist() {
   clean();
   await esbuild.build(getConfig());
 }
 
-function clean() {
-  fs.rmdirSync(path.join(process.cwd(), '/dist'), {
+function clean(dir = 'dist') {
+  fs.rmdirSync(path.join(process.cwd(), `/${dir}`), {
     recursive: true,
     force: true,
   });
