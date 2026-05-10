@@ -50,7 +50,7 @@ function handleFileSelection(e: Event) {
   const reader = new FileReader();
 
   reader.onload = () => play(reader.result as ArrayBuffer);
-  reader.onerror = () => notifyErr(`Failed reading file "${file.name}"`);
+  reader.onerror = () => notifyErr(`Error: failed to read file "${file.name}"`);
   reader.readAsArrayBuffer(file);
 }
 

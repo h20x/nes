@@ -12,7 +12,7 @@ export function createMapper(buffer: ArrayBuffer): Mapper {
   const arr = new Uint8Array(buffer, 0, buffer.byteLength);
 
   if (`${arr[0]}${arr[1]}${arr[2]}${arr[3]}` !== '78698326') {
-    throw new Error('Invalid header format');
+    throw new Error('Error: invalid nes file');
   }
 
   const headerSize = 16;
@@ -50,7 +50,7 @@ export function createMapper(buffer: ArrayBuffer): Mapper {
       return new Mapper7(prg, chr, mirroring, altNametableLayout);
 
     default:
-      throw new Error(`Unsupported mapper ${mapperNum}`);
+      throw new Error(`Error: unsupported mapper "${mapperNum}"`);
   }
 }
 
