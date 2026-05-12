@@ -40,6 +40,10 @@ function getConfig(dev = false) {
             from: ['./src/app/index.html'],
             to: [dir],
           },
+          {
+            from: ['./src/app/favicon.ico'],
+            to: [dir],
+          },
         ],
         resolveFrom: 'cwd',
         watch: dev,
