@@ -74,7 +74,7 @@ async function dist() {
 }
 
 function clean(dir = 'dist') {
-  fs.rmdirSync(path.join(process.cwd(), `/${dir}`), {
+  fs.rmSync(path.join(process.cwd(), `/${dir}`), {
     recursive: true,
     force: true,
   });
