@@ -1,30 +1,28 @@
 import { Screen } from './screen';
 
-const WIDTH = 256;
-const HEIGHT = 240;
-
 export class CanvasScreen implements Screen {
   private ctx: CanvasRenderingContext2D;
 
-  private imageData: ImageData;
+  private imgData: ImageData;
 
-  private dataView: DataView;
-
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    private pixels: Uint8ClampedArray,
+    private width: number = 256,
+    private height: number = 240
+  ) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
-    this.imageData = this.ctx.createImageData(WIDTH, HEIGHT);
-    this.dataView = new DataView(this.imageData.data.buffer);
+    this.imgData = this.ctx.createImageData(width, height);
   }
 
-  setPixel(x: number, y: number, color: number): void {
-    this.dataView.setUint32((y * WIDTH + x) * 4, color);
-  }
+  setPixel(x: number, y: number, color: number): void {}
 
   update(): void {
-    this.ctx.putImageData(this.imageData, 0, 0);
+    this.imgData.data.set(this.pixels);
+    this.ctx.putImageData(this.imgData, 0, 0);
   }
 
   clear(): void {
-    this.ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    this.ctx.clearRect(0, 0, this.width, this.height);
   }
 }

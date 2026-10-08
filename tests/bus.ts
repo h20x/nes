@@ -1,15 +1,11 @@
-import { ICPUBus } from '../src/console/bus';
-
-export class TestBus implements ICPUBus {
-  private ram: Uint8Array = new Uint8Array(65536);
+export class Bus {
+  constructor(private wmodule: TWasmModule) {}
 
   read(addr: number): number {
-    return this.ram[addr];
+    return this.wmodule._busRead(addr);
   }
 
   write(addr: number, val: number): void {
-    this.ram[addr] = val;
+    this.wmodule._busWrite(addr, val);
   }
-
-  copyOAM(addr: number): void {}
 }

@@ -2,10 +2,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { Bus } from '../src/console/bus';
-import { CPU } from '../src/console/cpu';
-import { TestBus } from './bus';
+import { Bus } from './bus';
+import { CPU } from './cpu';
 import { Logger } from './logger';
+
+const factory: () => Promise<TWasmModule> = require('../build/tests/main.js');
 
 type CPUState = {
   pc: number;
@@ -25,17 +26,20 @@ type TestData = {
   cycles: [number, number, string][];
 };
 
-global.DEV = true;
-
-const DEBUG = process.argv[2] === 'd';
+const LOG = process.argv[2] === 'l';
 
 let logger: Logger | null = null;
 let startTime = 0;
+let wmodule: TWasmModule;
 
-decimalTest();
-interruptTest();
-functionalTest();
-singleStepTests();
+factory().then((instance) => {
+  wmodule = instance;
+
+  decimalTest();
+  interruptTest();
+  functionalTest();
+  singleStepTests();
+});
 
 function functionalTest(): void {
   const testName = 'functional test';
@@ -128,8 +132,8 @@ function setupTest(
 ): [CPU, Bus] {
   startTime = Date.now();
 
-  const bus = new TestBus();
-  const cpu = new CPU(bus);
+  const bus = new Bus(wmodule);
+  const cpu = new CPU(wmodule);
 
   cpu.enableDecimalMode();
 
@@ -145,7 +149,7 @@ function setupTest(
 
   cpu.reset();
 
-  if (DEBUG) {
+  if (LOG) {
     logger = new Logger(cpu);
   }
 
@@ -214,10 +218,10 @@ function singleStepTests(): void {
 }
 
 function singleStepTest({ name, initial, final, cycles }: TestData): void {
-  const bus = new TestBus();
-  const cpu = new CPU(bus, initial, true);
+  const bus = new Bus(wmodule);
+  const cpu = new CPU(wmodule, initial, true);
 
-  const logger = DEBUG ? new Logger(cpu) : null;
+  const logger = LOG ? new Logger(cpu) : null;
 
   for (const [addr, val] of initial.ram) {
     bus.write(addr, val);

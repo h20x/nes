@@ -1,13 +1,17 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import fs from 'fs';
-import path from 'path';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const TASKS = new Map([
   ['dist', dist],
-  ['dev', () => serve(true)],
+  ['dev', dev],
   ['serve', serve],
+  ['clean', clean],
 ]);
+
+const OUTDIR = 'dist';
 
 runTask();
 
@@ -21,43 +25,14 @@ function runTask() {
   }
 }
 
-function getConfig(dev = false) {
-  const dir = dev ? 'build' : 'dist';
-
-  return {
-    entryPoints: [
-      { out: 'app', in: 'src/app/app.ts' },
-      { out: 'audio-processor', in: 'src/console/apu/audio-processor.js' },
-    ],
-    define: { DEV: String(dev) },
-    bundle: true,
-    minify: !dev,
-    outdir: dir,
-    plugins: [
-      copy({
-        assets: [
-          {
-            from: ['./src/app/index.html'],
-            to: [dir],
-          },
-          {
-            from: ['./src/app/favicon.ico'],
-            to: [dir],
-          },
-        ],
-        resolveFrom: 'cwd',
-        watch: dev,
-      }),
-    ],
-  };
+async function dist() {
+  await esbuild.build(getConfig());
 }
 
-async function serve(dev = false) {
-  const conf = getConfig(dev);
-  clean(conf.outdir);
-  const ctx = await esbuild.context(conf);
+async function dev() {
+  const ctx = await esbuild.context(getConfig(true));
   const { port } = await ctx.serve({
-    servedir: conf.outdir,
+    servedir: OUTDIR,
     onRequest: ({ remoteAddress, method, path, status, timeInMS }) => {
       console.log(
         `${remoteAddress} - "${method} ${path}" ${status} [${timeInMS}ms]`
@@ -65,17 +40,80 @@ async function serve(dev = false) {
     },
   });
 
-  console.log(`Serve 127.0.0.1:${port}\n`);
+  console.log(`http://localhost:${port}\n`);
 }
 
-async function dist() {
-  clean();
-  await esbuild.build(getConfig());
+async function serve() {
+  const mimeTypes = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.wasm': 'application/wasm',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+  };
+
+  const server = http.createServer((req, res) => {
+    let file = req.url === '/' ? '/index.html' : req.url;
+
+    file = path.join(process.cwd(), 'dist', file);
+
+    try {
+      const data = fs.readFileSync(file);
+      const ext = path.extname(file).toLowerCase();
+      const mime = mimeTypes[ext] ?? 'application/octet-stream';
+
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+
+      res.end(data);
+    } catch {
+      res.writeHead(404);
+      res.end('Not found');
+    }
+  });
+
+  server.listen(9000, () => {
+    console.log('http://localhost:9000');
+  });
 }
 
-function clean(dir = 'dist') {
-  fs.rmSync(path.join(process.cwd(), `/${dir}`), {
+function clean() {
+  const dir = path.join(process.cwd(), `/${OUTDIR}`);
+
+  fs.rmSync(dir, {
     recursive: true,
     force: true,
   });
+
+  fs.mkdirSync(dir);
+}
+
+function getConfig(dev = false) {
+  return {
+    entryPoints: [{ out: 'app', in: 'src/app/app.ts' }],
+    bundle: true,
+    minify: !dev,
+    outdir: OUTDIR,
+    plugins: [
+      copy({
+        assets: [
+          {
+            from: ['./src/app/index.html'],
+            to: [OUTDIR],
+          },
+          {
+            from: ['./src/app/favicon.ico'],
+            to: [OUTDIR],
+          },
+        ],
+        resolveFrom: 'cwd',
+        watch: dev,
+      }),
+    ],
+  };
 }

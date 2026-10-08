@@ -176,3 +176,7 @@ button {
 .hidden {
   display: none !important;
 }
+
+.vh {
+  visibility: hidden;
+}

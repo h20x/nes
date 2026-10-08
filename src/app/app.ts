@@ -1,13 +1,18 @@
-import {
-  Button,
-  CanvasScreen,
-  Console,
-  Controller,
-  createMapper,
-} from '../console';
+import { CanvasScreen, Screen } from '../console';
 import './app.css';
 
 declare var darkMode: boolean;
+
+enum Button {
+  A = 1 << 0,
+  B = 1 << 1,
+  Select = 1 << 2,
+  Start = 1 << 3,
+  Up = 1 << 4,
+  Down = 1 << 5,
+  Left = 1 << 6,
+  Right = 1 << 7,
+}
 
 const KEYS = new Map([
   ['KeyZ', Button.A],
@@ -20,25 +25,46 @@ const KEYS = new Map([
   ['ArrowRight', Button.Right],
 ]);
 
-let nes: Console;
-let gameData: ArrayBuffer;
-let controlsOpen = false;
-const controller1 = new Controller();
-const controller2 = new Controller();
-const canvasEl = document.querySelector('.screen') as HTMLCanvasElement;
 const controlsEl = document.querySelector('.controls')!;
+let gameDataPtr: number | null = null;
+let controlsOpen = false;
+let rafId: number = 0;
+let screen: Screen;
+let imageDataPtr: number;
+let imageDataArr: Uint8ClampedArray;
+let wmodule: WasmModule;
 
-document.querySelectorAll('.file').forEach((el) => {
-  el.addEventListener('change', handleFileSelection);
+Module().then((instance) => {
+  wmodule = instance;
+
+  const width = 256;
+  const height = 240;
+  const size = width * height * 4;
+  imageDataPtr = wmodule._malloc(size);
+  imageDataArr = new Uint8ClampedArray(
+    wmodule.HEAPU8.buffer,
+    imageDataPtr,
+    size
+  );
+  screen = new CanvasScreen(
+    document.querySelector('.screen') as HTMLCanvasElement,
+    imageDataArr,
+    width,
+    height
+  );
+
+  document.querySelectorAll('.file').forEach((el) => {
+    el.addEventListener('change', handleFileSelection);
+  });
+  document.querySelector('.ctrl-reset')!.addEventListener('click', play);
+  document.querySelector('.ctrl-keys')!.addEventListener('click', openControls);
+  document.querySelector('.ctrl-mode')!.addEventListener('click', switchMode);
+  document.addEventListener('keydown', handleKeyDown);
+  document.addEventListener('keyup', handleKeyUp);
+
+  document.querySelector('.panel')!.classList.remove('vh');
+  document.querySelector('.intro .btn')!.classList.remove('vh');
 });
-document.querySelector('.ctrl-reset')!.addEventListener('click', reset);
-document.querySelector('.ctrl-keys')!.addEventListener('click', openControls);
-document.querySelector('.ctrl-mode')!.addEventListener('click', switchMode);
-document.addEventListener('keydown', handleKeyDown);
-document.addEventListener('keydown', (e) => {
-  e.code === 'KeyR' && reset();
-});
-document.addEventListener('keyup', handleKeyUp);
 
 function handleFileSelection(e: Event) {
   const file = (e.target as HTMLInputElement).files![0];
@@ -49,45 +75,43 @@ function handleFileSelection(e: Event) {
 
   const reader = new FileReader();
 
-  reader.onload = () => play(reader.result as ArrayBuffer);
+  reader.onload = () => {
+    wmodule._free(gameDataPtr);
+    const view = new Uint8Array(reader.result as ArrayBuffer);
+    gameDataPtr = wmodule._malloc(view.byteLength);
+    wmodule.HEAPU8.set(view, gameDataPtr);
+    play();
+  };
   reader.onerror = () => notifyErr(`Error: failed to read file "${file.name}"`);
   reader.readAsArrayBuffer(file);
 }
 
 function handleKeyDown(e: KeyboardEvent): void {
-  if (KEYS.has(e.code)) {
+  if (e.code === 'KeyR') {
+    play();
+  } else if (e.code === 'KeyO') {
+    (document.querySelector('.file') as HTMLInputElement).click();
+  } else if (KEYS.has(e.code)) {
     e.preventDefault();
-    controller1.pressButton(KEYS.get(e.code)!);
+    wmodule._pressButton(KEYS.get(e.code)!);
   }
 }
 
 function handleKeyUp(e: KeyboardEvent): void {
   if (KEYS.has(e.code)) {
     e.preventDefault();
-    controller1.releaseButton(KEYS.get(e.code)!);
+    wmodule._releaseButton(KEYS.get(e.code)!);
   }
 }
 
-async function play(data: ArrayBuffer) {
-  if (!data) {
+function play() {
+  if (gameDataPtr == null) {
     return;
   }
 
-  if (!nes) {
-    nes = new Console(new CanvasScreen(canvasEl), controller1, controller2);
-  }
-
-  try {
-    await nes.play(createMapper(data));
-    gameData = data;
-    hideIntro();
-  } catch (err) {
-    notifyErr(err as Error);
-  }
-}
-
-function reset() {
-  play(gameData);
+  wmodule._init(gameDataPtr, imageDataPtr);
+  startGameLoop();
+  hideIntro();
 }
 
 function switchMode() {
@@ -136,4 +160,28 @@ function openControls() {
 function notifyErr(err: string | Error) {
   console.error(err);
   alert(typeof err === 'string' ? err : err.message);
+}
+
+function startGameLoop(): void {
+  cancelAnimationFrame(rafId);
+
+  const frameTime = 1000 / 60;
+  let time = 0;
+  let prev = 0;
+
+  const frame = (now: number) => {
+    time += now - prev;
+    const skip = time < frameTime;
+    prev = now;
+    time %= frameTime;
+
+    if (!skip) {
+      wmodule._renderFrame();
+      screen.update();
+    }
+
+    rafId = requestAnimationFrame(frame);
+  };
+
+  frame(0);
 }

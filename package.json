@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "ts-node tests/main.ts",
+    "test": "tsx tests/main.ts",
     "typecheck": "tsc --noEmit",
     "dist": "node tasks.mjs dist",
     "dev": "node tasks.mjs dev",
-    "serve": "node tasks.mjs serve"
+    "serve": "node tasks.mjs serve",
+    "clean": "node tasks.mjs clean"
   },
   "repository": {
     "type": "git",
@@ -22,12 +23,11 @@
   },
   "homepage": "https://github.com/h20x/nes#readme",
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "assemblyscript": "^0.28.20",
+    "@types/node": "^26.4.0",
     "esbuild": "^0.28.1",
     "esbuild-plugin-copy": "^2.1.1",
     "prettier": "^3.9.6",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   },
   "allowScripts": {
