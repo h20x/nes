@@ -1,4 +1,4 @@
-import { CanvasScreen, Screen } from '../console';
+import { Screen, ScreenGL } from '../console';
 import './app.css';
 
 declare var darkMode: boolean;
@@ -46,12 +46,13 @@ Module().then((instance) => {
     imageDataPtr,
     size
   );
-  screen = new CanvasScreen(
+  screen = new ScreenGL(
     document.querySelector('.screen') as HTMLCanvasElement,
     imageDataArr,
     width,
     height
   );
+  screen.init();
 
   document.querySelectorAll('.file').forEach((el) => {
     el.addEventListener('change', handleFileSelection);

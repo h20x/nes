@@ -1,5 +1,4 @@
 export interface Screen {
-  setPixel(x: number, y: number, color: number): void;
+  init(): void;
   update(): void;
-  clear(): void;
 }
