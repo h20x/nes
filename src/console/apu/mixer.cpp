@@ -4,23 +4,21 @@
 #include <emscripten/console.h>
 #include <emscripten/webaudio.h>
 
-class AudioSamplesQueue {
+class AudioBuffer {
 public:
-  AudioSamplesQueue() {}
+  AudioBuffer() {}
 
   void push(float v) {
-    if (l < size) {
-      a[(i + l++) % size] = v;
+    if (len < size) {
+      data[(i + len++) % size] = v;
     }
   }
 
   void drain(float *output, int outputSize) {
-    float v = 0;
-
     for (int j = 0; j < outputSize; ++j) {
-      if (l > 0) {
-        --l;
-        v = a[i++];
+      if (len > 0) {
+        --len;
+        v = data[i++];
         i %= size;
       }
 
@@ -28,19 +26,21 @@ public:
     }
   }
 
-  void clear() { i = l = 0; }
+  void clear() { v = i = len = 0; }
 
 private:
-  static constexpr int size = 768;
+  static constexpr int size = 4096;
 
-  float a[size]{};
+  float data[size]{};
+
+  float v = 0;
 
   int i = 0;
 
-  int l = 0;
+  int len = 0;
 };
 
-static AudioSamplesQueue asq;
+static AudioBuffer buf;
 
 static uint8_t audioThreadStack[4096];
 
@@ -51,7 +51,7 @@ static bool initing = false;
 bool processAudio(int numInputs, const AudioSampleFrame *inputs, int numOutputs,
                   AudioSampleFrame *outputs, int numParams,
                   const AudioParamFrame *params, void *userData) {
-  asq.drain(outputs[0].data, outputs[0].samplesPerChannel);
+  buf.drain(outputs[0].data, outputs[0].samplesPerChannel);
 
   return true;
 }
@@ -120,9 +120,9 @@ void Mixer::init() {
 }
 
 void Mixer::mix(uint8_t p1, uint8_t p2, uint8_t t, uint8_t n, uint8_t d) {
-  asq.push(PULSE_LT[p1 + p2] + TND_LT[3 * t + 2 * n + d]);
+  buf.push(PULSE_LT[p1 + p2] + TND_LT[3 * t + 2 * n + d]);
 }
 
-void Mixer::reset() { asq.clear(); }
+void Mixer::reset() { buf.clear(); }
 
 bool Mixer::isInited() { return inited; }
